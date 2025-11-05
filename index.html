@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinity 3D REXTORD_YT Demo</title>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        canvas { display: block; }
+
+        /* ---------------------------------------------------- */
+        /* NUEVO: Pantalla de Carga/Bienvenida (Splash Screen) */
+        /* ---------------------------------------------------- */
+
+        #splash-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #1a1a1a; /* Fondo oscuro */
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 9999; /* Asegura que esté por encima de todo */
+            opacity: 1;
+            transition: opacity 1.5s ease-out; /* Transición para desvanecerse */
+        }
+
+        #splash-screen.hidden {
+            opacity: 0;
+            pointer-events: none; /* Ignora clics una vez oculta */
+        }
+
+        #splash-screen h1 {
+            font-size: 3rem;
+            margin: 10px 0;
+            color: #38c4f9; /* Color de acento */
+        }
+
+        #splash-screen p {
+            font-size: 1.2rem;
+            margin: 5px 0;
+        }
+
+        .version {
+            font-size: 0.9rem;
+            color: #aaaaaa;
+            margin-bottom: 20px;
+        }
+
+        /* Controles y ventanas (manteniendo estilos anteriores) */
+        #ui-barra-superior {
+            position: absolute; top: 10px; right: 10px; z-index: 100; display: flex; gap: 10px; 
+        }
+        .btn-ui-principal { background-color: #2b2b2b; color: white; border: none; padding: 10px 15px; cursor: pointer; font-size: 1rem; border-radius: 4px; transition: background-color 0.2s; }
+        .btn-ui-principal:hover { background-color: #444444; }
+        .btn-ui-principal.activo { background-color: #38c4f9; color: black; }
+
+        #controles-modo-ventana { position: absolute; top: 50px; left: 10px; background-color: rgba(30, 30, 30, 0.9); border-radius: 5px; padding: 5px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); z-index: 101; display: none; }
+        .btn-control { background-color: rgba(0, 0, 0, 0.6); color: white; border: none; padding: 8px 12px; cursor: pointer; font-size: 1.2rem; border-radius: 4px; margin: 3px; transition: background-color 0.2s; }
+        .btn-control.activo { background-color: #38c4f9; color: black; }
+
+        #outliner { position: absolute; top: 50px; left: 10px; width: 180px; max-height: 250px; background-color: rgba(30, 30, 30, 0.9); color: white; border-radius: 5px; padding: 10px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); overflow-y: auto; z-index: 101; display: none; }
+        #outliner h3 { margin-top: 0; font-size: 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 5px; margin-bottom: 10px; }
+        .outliner-item { padding: 5px; cursor: pointer; border-radius: 3px; font-size: 0.9rem; margin-bottom: 2px; }
+        .outliner-item.selected { background-color: #38c4f9; color: black; font-weight: bold; }
+
+        #sensibilidad-ventana { position: absolute; top: 50px; right: 10px; width: 220px; background-color: rgba(30, 30, 30, 0.9); color: white; border-radius: 5px; padding: 15px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); z-index: 101; display: none; }
+        #sensibilidad-ventana h3 { margin-top: 0; font-size: 1rem; margin-bottom: 10px; }
+        #sensibilidad-ventana label { display: block; margin-top: 10px; font-size: 0.9rem; }
+        #sensibilidad-ventana input[type="range"] { width: 100%; }
+
+        #particulas-ventana { position: absolute; top: 50px; right: 10px; width: 200px; background-color: rgba(30, 30, 30, 0.9); color: white; border-radius: 5px; padding: 15px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); z-index: 101; display: none; }
+        #particulas-ventana h3 { margin-top: 0; font-size: 1rem; margin-bottom: 10px; }
+        #particulas-ventana button { display: block; width: 100%; padding: 8px; margin-bottom: 8px; background-color: #4a4a4a; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
+        #particulas-ventana button:hover { background-color: #6a6a6a; }
+        #particulas-ventana button.desactivado { background-color: #888888; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div id="splash-screen">
+        <p class="version">VERSIÓN BETA 1.0 DEMO</p>
+        <h1>INFINITY 3D REXTORD_YT</h1>
+        <p>GRACIAS POR PATROCINAR EL PROYECTO</p>
+    </div>
+
+    <div id="ui-barra-superior">
+        <button id="btn-mostrar-particulas" class="btn-ui-principal"><i class="fas fa-magic"></i> Partículas</button>
+        <button id="btn-mostrar-sensibilidad" class="btn-ui-principal"><i class="fas fa-cog"></i> Sensibilidad</button>
+        <button id="btn-mostrar-controles" class="btn-ui-principal"><i class="fas fa-tools"></i> Controles</button>
+        <button id="btn-mostrar-outliner" class="btn-ui-principal"><i class="fas fa-list"></i> Objetos</button>
+    </div>
+
+    <div id="controles-modo-ventana">
+        <button id="btn-mover" class="btn-control" data-mode="translate" title="Mover (W)"><i class="fas fa-arrows-alt"></i></button>
+        <button id="btn-rotar" class="btn-control" data-mode="rotate" title="Rotar (E)"><i class="fas fa-redo"></i></button>
+        <button id="btn-escalar" class="btn-control" data-mode="scale" title="Escalar (R)"><i class="fas fa-expand-alt"></i></button>
+    </div>
+
+    <div id="outliner">
+        <h3>Objetos de la Escena</h3>
+        <div id="outliner-list"></div>
+    </div>
+    
+    <div id="sensibilidad-ventana">
+        <h3>Sensibilidad de la Cámara</h3>
+        <label for="sensibilidad-rotacion">Rotación (Actual: <span id="valor-rotacion">0.25</span>)</label>
+        <input type="range" id="sensibilidad-rotacion" min="0.05" max="1" step="0.05" value="0.25">
+        <label for="sensibilidad-zoom">Zoom (Actual: <span id="valor-zoom">1</span>)</label>
+        <input type="range" id="sensibilidad-zoom" min="0.1" max="5" step="0.1" value="1">
+    </div>
+
+    <div id="particulas-ventana">
+        <h3>Sistema de Partículas</h3>
+        <button id="btn-particulas-fuego">🔥 Fuego</button>
+        <button id="btn-particulas-agua">💧 Fuente de Agua</button>
+        <button id="btn-particulas-lava">🌋 Lava</button>
+        <button id="btn-particulas-limpiar">Limpiar Partículas</button>
+    </div>
+
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
+
+        // --- Configuración Básica de la Escena (Se mantiene) ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        scene.background = new THREE.Color(0xaaaaaa);
+        camera.position.set(5, 5, 5);
+
+        const orbitControls = new OrbitControls(camera, renderer.domElement);
+        orbitControls.rotateSpeed = 0.25; 
+        orbitControls.zoomSpeed = 1;
+        
+        const transformControls = new TransformControls(camera, renderer.domElement);
+        scene.add(transformControls);
+
+        transformControls.addEventListener('dragging-changed', function (event) {
+            orbitControls.enabled = !event.value;
+        });
+
+        // --- Objetos de la Escena (Se mantiene) ---
+        const gridHelper = new THREE.GridHelper(10, 10, 0x0000ff, 0x808080);
+        scene.add(gridHelper);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5);
+        scene.add(directionalLight);
+        
+        const cube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshNormalMaterial({ transparent: true, opacity: 0.8 }));
+        cube.name = "Cubo Principal"; 
+        cube.isSelectable = true;
+        cube.position.y = 1;
+        scene.add(cube);
+        
+        const sphere = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
+        sphere.name = "Esfera Roja";
+        sphere.isSelectable = true;
+        sphere.position.set(3, 1, 0);
+        scene.add(sphere);
+
+        // --- Lógica de la Interfaz (Se mantiene) ---
+        
+        const outlinerList = document.getElementById('outliner-list');
+        const outlinerWindow = document.getElementById('outliner');
+        const btnMostrarOutliner = document.getElementById('btn-mostrar-outliner');
+        const buttons = document.querySelectorAll('.btn-control');
+        const controlesModoVentana = document.getElementById('controles-modo-ventana');
+        const btnMostrarControles = document.getElementById('btn-mostrar-controles');
+        const sensibilidadWindow = document.getElementById('sensibilidad-ventana');
+        const btnMostrarSensibilidad = document.getElementById('btn-mostrar-sensibilidad');
+        const rangeRotacion = document.getElementById('sensibilidad-rotacion');
+        const valorRotacionSpan = document.getElementById('valor-rotacion');
+        const rangeZoom = document.getElementById('sensibilidad-zoom');
+        const valorZoomSpan = document.getElementById('valor-zoom');
+        let objetoSeleccionado = null;
+        
+        // [Funciones de Interfaz: populateOutliner, selectObject, setMode, Listeners]
+        // Se omiten por brevedad, pero son las mismas del código anterior.
+        function populateOutliner() {
+            outlinerList.innerHTML = '';
+            scene.traverse(child => {
+                if (child.isMesh && child.name && child.isSelectable) {
+                    const item = document.createElement('div');
+                    item.className = 'outliner-item';
+                    item.textContent = child.name;
+                    item.dataset.uuid = child.uuid;
+                    item.addEventListener('click', () => selectObject(child));
+                    outlinerList.appendChild(item);
+                }
+            });
+        }
+        function selectObject(object) {
+            if (objetoSeleccionado === object) return;
+            objetoSeleccionado = object;
+            transformControls.attach(object); 
+            document.querySelectorAll('.outliner-item').forEach(item => item.classList.remove('selected'));
+            const selectedItemElement = document.querySelector(`.outliner-item[data-uuid="${object.uuid}"]`);
+            if (selectedItemElement) {
+                selectedItemElement.classList.add('selected');
+            }
+        }
+        function setMode(mode) {
+            transformControls.setMode(mode);
+            buttons.forEach(btn => btn.classList.remove('activo'));
+            document.querySelector(`#controles-modo-ventana .btn-control[data-mode="${mode}"]`).classList.add('activo');
+        }
+
+        btnMostrarOutliner.addEventListener('click', () => {
+            const isVisible = outlinerWindow.style.display === 'block';
+            outlinerWindow.style.display = isVisible ? 'none' : 'block';
+            btnMostrarOutliner.classList.toggle('activo', !isVisible);
+        });
+        btnMostrarControles.addEventListener('click', () => {
+            const isVisible = controlesModoVentana.style.display === 'flex';
+            controlesModoVentana.style.display = isVisible ? 'none' : 'flex';
+            btnMostrarControles.classList.toggle('activo', !isVisible);
+            if (!isVisible) {
+                setMode('translate');
+            } else {
+                transformControls.detach(); 
+            }
+        });
+        buttons.forEach(button => {
+            button.addEventListener('click', () => {
+                setMode(button.getAttribute('data-mode'));
+                if (objetoSeleccionado) {
+                    transformControls.attach(objetoSeleccionado);
+                }
+            });
+        });
+        btnMostrarSensibilidad.addEventListener('click', () => {
+            const isVisible = sensibilidadWindow.style.display === 'block';
+            sensibilidadWindow.style.display = isVisible ? 'none' : 'block';
+            btnMostrarSensibilidad.classList.toggle('activo', !isVisible);
+        });
+        rangeRotacion.addEventListener('input', (event) => {
+            const nuevoValor = parseFloat(event.target.value);
+            orbitControls.rotateSpeed = nuevoValor; 
+            valorRotacionSpan.textContent = nuevoValor.toFixed(2); 
+        });
+        rangeZoom.addEventListener('input', (event) => {
+            const nuevoValor = parseFloat(event.target.value);
+            orbitControls.zoomSpeed = nuevoValor; 
+            valorZoomSpan.textContent = nuevoValor.toFixed(1); 
+        });
+
+        // --- Sistema de Partículas (Se mantiene) ---
+        const particulasWindow = document.getElementById('particulas-ventana');
+        const btnMostrarParticulas = document.getElementById('btn-mostrar-particulas');
+        const btnParticulasFuego = document.getElementById('btn-particulas-fuego');
+        const btnParticulasAgua = document.getElementById('btn-particulas-agua');
+        const btnParticulasLava = document.getElementById('btn-particulas-lava');
+        const btnParticulasLimpiar = document.getElementById('btn-particulas-limpiar');
+        let activeParticles = null; 
+        const fireParticlesGroup = new THREE.Group();
+        const waterParticlesGroup = new THREE.Group();
+        const lavaParticlesGroup = new THREE.Group();
+        
+        btnMostrarParticulas.addEventListener('click', () => {
+            const isVisible = particulasWindow.style.display === 'block';
+            particulasWindow.style.display = isVisible ? 'none' : 'block';
+            btnMostrarParticulas.classList.toggle('activo', !isVisible);
+        });
+
+        function setActiveButton(activeType) {
+            btnParticulasFuego.classList.remove('desactivado');
+            btnParticulasAgua.classList.remove('desactivado');
+            btnParticulasLava.classList.remove('desactivado');
+            if (activeType === 'fire') btnParticulasFuego.classList.add('desactivado');
+            if (activeType === 'water') btnParticulasAgua.classList.add('desactivado');
+            if (activeType === 'lava') btnParticulasLava.classList.add('desactivado');
+        }
+
+        btnParticulasFuego.addEventListener('click', () => {
+            if (activeParticles === 'fire') return;
+            limpiarParticulas();
+            activeParticles = 'fire';
+            generarParticulasFuego();
+            setActiveButton('fire');
+        });
+        btnParticulasAgua.addEventListener('click', () => {
+            if (activeParticles === 'water') return;
+            limpiarParticulas();
+            activeParticles = 'water';
+            generarParticulasAgua();
+            setActiveButton('water');
+        });
+        btnParticulasLava.addEventListener('click', () => {
+            if (activeParticles === 'lava') return;
+            limpiarParticulas();
+            activeParticles = 'lava';
+            generarParticulasLava();
+            setActiveButton('lava');
+        });
+        btnParticulasLimpiar.addEventListener('click', () => {
+            limpiarParticulas();
+            activeParticles = null;
+            setActiveButton(null);
+        });
+        function generarParticulasFuego() {
+            const particleCount = 150;
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+            const material = new THREE.PointsMaterial({
+                size: 0.75, color: 0xff4500, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.8, vertexColors: true, sizeAttenuation: true, depthWrite: false 
+            });
+            for (let i = 0; i < particleCount; i++) {
+                positions.push((Math.random() - 0.5) * 0.8, Math.random() * 0.5, (Math.random() - 0.5) * 0.8);
+                const color = new THREE.Color().setHSL(0.1 + Math.random() * 0.05, 1.0, 0.6); 
+                colors.push(color.r, color.g, color.b);
+            }
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            const particles = new THREE.Points(geometry, material);
+            fireParticlesGroup.add(particles);
+            scene.add(fireParticlesGroup);
+            fireParticlesGroup.position.set(-3, 0.5, -3);
+        }
+        function generarParticulasAgua() {
+            const particleCount = 300;
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const material = new THREE.PointsMaterial({
+                size: 0.1, color: 0xADD8E6, transparent: true, opacity: 0.7, sizeAttenuation: true
+            });
+            for (let i = 0; i < particleCount; i++) {
+                positions.push((Math.random() - 0.5) * 0.2, Math.random() * 0.5, (Math.random() - 0.5) * 0.2);
+            }
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            const particles = new THREE.Points(geometry, material);
+            waterParticlesGroup.add(particles);
+            scene.add(waterParticlesGroup);
+            waterParticlesGroup.position.set(0, 0, 0);
+        }
+        function generarParticulasLava() {
+            const particleCount = 200;
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+            const material = new THREE.PointsMaterial({
+                size: 0.3, color: 0xfa8072, blending: THREE.NormalBlending, transparent: true, opacity: 0.9, vertexColors: true, sizeAttenuation: true
+            });
+            for (let i = 0; i < particleCount; i++) {
+                positions.push((Math.random() - 0.5) * 1.5, Math.random() * 0.2, (Math.random() - 0.5) * 1.5);
+                const color = new THREE.Color().setHSL(0.0 + Math.random() * 0.15, 1.0, 0.5 + Math.random() * 0.3); 
+                colors.push(color.r, color.g, color.b);
+            }
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            const particles = new THREE.Points(geometry, material);
+            lavaParticlesGroup.add(particles);
+            scene.add(lavaParticlesGroup);
+            lavaParticlesGroup.position.set(-2, 0.05, 3);
+        }
+        function limpiarParticulas() {
+            [fireParticlesGroup, waterParticlesGroup, lavaParticlesGroup].forEach(group => {
+                group.children.forEach(child => child.geometry.dispose());
+                group.children.length = 0; 
+                scene.remove(group);
+            });
+        }
+        // --- FIN Sistema de Partículas ---
+
+        // --- Lógica de la Pantalla de Bienvenida (NUEVO) ---
+        const splashScreen = document.getElementById('splash-screen');
+
+        // Se inicializa el temporizador de 3 segundos (3000ms)
+        setTimeout(() => {
+            splashScreen.classList.add('hidden');
+            // Opcional: Eliminar el elemento del DOM después de que la transición termine
+            setTimeout(() => {
+                splashScreen.style.display = 'none';
+            }, 1500); // 1500ms es la duración de la transición CSS
+        }, 3000); // Muestra por 3 segundos
+
+        // --- Bucle de Animación (Se mantiene) ---
+        const clock = new THREE.Clock(); 
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            
+            // Lógica de movimiento de partículas (Se mantiene)
+            if (activeParticles === 'fire' && fireParticlesGroup.children.length > 0) {
+                const positions = fireParticlesGroup.children[0].geometry.attributes.position.array;
+                for (let i = 0; i < positions.length; i += 3) {
+                    positions[i + 1] += 1.0 * delta; 
+                    positions[i] += (Math.random() - 0.5) * 0.4 * delta; 
+                    if (positions[i + 1] > 3.0) {
+                        positions[i + 1] = Math.random() * 0.5;
+                    }
+                }
+                fireParticlesGroup.children[0].geometry.attributes.position.needsUpdate = true;
+            }
+
+            if (activeParticles === 'water' && waterParticlesGroup.children.length > 0) {
+                const positions = waterParticlesGroup.children[0].geometry.attributes.position.array;
+                for (let i = 0; i < positions.length; i += 3) {
+                    positions[i + 1] += (5.0 - positions[i + 1] * 2) * delta;
+                    if (positions[i + 1] > 4.0 || positions[i + 1] < 0.0) {
+                        positions[i + 1] = Math.random() * 0.5;
+                        positions[i] = (Math.random() - 0.5) * 0.2;
+                        positions[i + 2] = (Math.random() - 0.5) * 0.2;
+                    }
+                }
+                waterParticlesGroup.children[0].geometry.attributes.position.needsUpdate = true;
+            }
+
+            if (activeParticles === 'lava' && lavaParticlesGroup.children.length > 0) {
+                const positions = lavaParticlesGroup.children[0].geometry.attributes.position.array;
+                for (let i = 0; i < positions.length; i += 3) {
+                    positions[i] += (Math.random() - 0.5) * 0.1 * delta; 
+                    positions[i + 2] += (Math.random() - 0.5) * 0.1 * delta;
+                    if (Math.abs(positions[i]) > 1.5 || Math.abs(positions[i + 2]) > 1.5) {
+                         positions[i] = (Math.random() - 0.5) * 1.5;
+                         positions[i + 2] = (Math.random() - 0.5) * 1.5;
+                    }
+                }
+                lavaParticlesGroup.children[0].geometry.attributes.position.needsUpdate = true;
+            }
+
+            orbitControls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // --- Inicialización y Redimensionamiento (Se mantiene) ---
+        populateOutliner();
+        selectObject(cube); 
+        transformControls.detach();
+        rangeRotacion.value = orbitControls.rotateSpeed;
+        valorRotacionSpan.textContent = orbitControls.rotateSpeed.toFixed(2);
+        rangeZoom.value = orbitControls.zoomSpeed;
+        valorZoomSpan.textContent = orbitControls.zoomSpeed.toFixed(1);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
