@@ -1,0 +1,3287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ORBIT Console - Voxel Sandbox 3D & Games</title>
+
+<!-- PeerJS para Streaming WebRTC -->
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+<!-- Import Map para Three.js -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"
+  }
+}
+</script>
+
+<style>
+*{
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;
+    -webkit-user-select:none;
+}
+
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#061426;
+    color:white;
+    font-family:'Courier New', Courier, monospace, Arial, sans-serif;
+}
+
+:root{
+    --blue:#087cff;
+    --orange:#ff7600;
+    --green:#27ae60;
+    --dark:#061426;
+    --panel:#091d33;
+    --sekai-hud-bg: rgba(20, 24, 33, 0.88);
+}
+
+button{
+    border:0;
+    color:white;
+    font-weight:bold;
+    touch-action:manipulation;
+    font-family:inherit;
+}
+
+.hidden{
+    display:none!important;
+}
+
+/* =====================================================
+   1. PANTALLA DE CARGA / DESCARGA DE RECURSOS
+===================================================== */
+#loaderScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: radial-gradient(circle at center, #0e3052, #040d18 80%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.loaderCard {
+    width: min(460px, 92%);
+    background: #081a2e;
+    border: 2px solid var(--blue);
+    border-radius: 20px;
+    padding: 30px 24px;
+    text-align: center;
+    box-shadow: 0 0 50px rgba(8, 124, 255, 0.3);
+}
+
+.loaderLogo {
+    font-size: 44px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: var(--orange);
+    text-shadow: 0 0 15px rgba(255, 118, 0, 0.5);
+}
+
+.loaderStepTitle {
+    font-size: 16px;
+    color: #087cff;
+    margin-top: 15px;
+    font-weight: bold;
+    min-height: 24px;
+}
+
+.loaderProgressBarBg {
+    width: 100%;
+    height: 18px;
+    background: #040c16;
+    border: 2px solid #1a4975;
+    border-radius: 10px;
+    margin: 20px 0 10px 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.loaderProgressBarFill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #087cff, #ff7600);
+    border-radius: 8px;
+    transition: width 0.15s linear;
+}
+
+.loaderStatusText {
+    font-size: 13px;
+    color: #8cb8dd;
+    margin-top: 6px;
+}
+
+/* =====================================================
+   2. REGISTRO DE NOMBRE / USUARIO
+===================================================== */
+#nameScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 2500;
+    background: radial-gradient(circle at center, #103d68, #061426 72%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.nameCard {
+    width: min(420px, 92%);
+    padding: 30px 24px;
+    text-align: center;
+    background: #091d33;
+    border: 2px solid var(--orange);
+    border-radius: 22px;
+    box-shadow: 0 0 45px rgba(255, 118, 0, 0.3);
+}
+
+.nameCard h2 {
+    color: var(--orange);
+    margin: 0 0 10px 0;
+    font-size: 24px;
+    letter-spacing: 2px;
+}
+
+.nameCard p {
+    color: #8cb8dd;
+    font-size: 13px;
+    margin-bottom: 20px;
+    line-height: 1.4;
+}
+
+.nameInput {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: 2px solid #245e8e;
+    background: #071729;
+    color: #ffffff;
+    font-size: 16px;
+    text-align: center;
+    font-weight: bold;
+    outline: none;
+    margin-bottom: 18px;
+    font-family: inherit;
+}
+
+.nameInput:focus {
+    border-color: var(--orange);
+    box-shadow: 0 0 15px rgba(255, 118, 0, 0.4);
+}
+
+/* =====================================================
+   INICIO Y CONEXIÓN CONSOLA / RECEPTOR
+===================================================== */
+#home{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index: 1000;
+    background: radial-gradient(circle at center, #103d68, #061426 72%);
+}
+
+.homeCard{
+    width:min(450px,92%);
+    padding:30px;
+    text-align:center;
+    background:#091d33;
+    border:2px solid var(--blue);
+    border-radius:24px;
+    box-shadow:0 0 40px #087cff44;
+}
+
+.logo{
+    font-size:42px;
+    font-weight:900;
+    letter-spacing:6px;
+    color:var(--orange);
+}
+
+.subtitle{
+    margin-top:5px;
+    color:#86b3dc;
+    font-size:14px;
+}
+
+.playerTag {
+    background: rgba(8, 124, 255, 0.2);
+    border: 1px solid var(--blue);
+    padding: 6px 14px;
+    border-radius: 20px;
+    display: inline-block;
+    color: #ffeb3b;
+    font-size: 13px;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+.homeText{
+    margin:18px 0;
+    color:#91b8dc;
+    line-height:1.5;
+    font-size:13px;
+}
+
+.homeButton{
+    width:100%;
+    padding:16px;
+    margin-top:10px;
+    border-radius:12px;
+    background:var(--blue);
+    font-size:15px;
+    cursor:pointer;
+    transition: transform 0.1s;
+}
+.homeButton:active {
+    transform: scale(0.98);
+}
+
+.homeButton.orange{
+    background:var(--orange);
+}
+
+/* =====================================================
+   3. MENÚ DE SELECCIÓN DE JUEGOS
+===================================================== */
+#gameSelectScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: radial-gradient(circle at center, #0c2b4a, #040c17 80%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.gameSelectHeader {
+    width: min(700px, 100%);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #1a4975;
+}
+
+.gameSelectTitle {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--orange);
+    letter-spacing: 2px;
+}
+
+.gamesGrid {
+    width: min(700px, 100%);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.gameCard {
+    background: #091d33;
+    border: 2px solid #1a4975;
+    border-radius: 18px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.gameCard.active {
+    border-color: var(--orange);
+    box-shadow: 0 0 25px rgba(255, 118, 0, 0.25);
+}
+
+.gameCard.disabled {
+    opacity: 0.85;
+    border-color: #3b5066;
+}
+
+.gameBadge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+}
+
+.badgePlayable { background: #27ae60; color: white; }
+.badgeSoon { background: #e74c3c; color: white; animation: pulseBadge 1.5s infinite; }
+
+@keyframes pulseBadge {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.75; transform: scale(0.95); }
+}
+
+.gameIconBox {
+    width: 100%;
+    height: 120px;
+    border-radius: 12px;
+    background: #05101c;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.gameTitle {
+    font-size: 18px;
+    font-weight: 900;
+    color: white;
+    margin-bottom: 8px;
+}
+
+.gameDesc {
+    font-size: 12px;
+    color: #8cb8dd;
+    text-align: center;
+    line-height: 1.4;
+    margin-bottom: 18px;
+    flex-grow: 1;
+}
+
+.playBtn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--orange);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.playBtn.disabledBtn {
+    background: #34495e;
+    color: #7f8c8d;
+    cursor: not-allowed;
+}
+
+/* Animación Mayo 2D Teaser Canvas / Pixel Art */
+.mayoAnimatedBox {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, #182848 0%, #4b6cb7 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mayoCharacter {
+    width: 40px;
+    height: 48px;
+    background: #ff3366;
+    border-radius: 8px;
+    position: relative;
+    animation: mayoBounce 0.8s infinite alternate ease-in-out;
+}
+.mayoCharacter::before {
+    content: '👀';
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    font-size: 18px;
+}
+.mayoCharacter::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 6px;
+    width: 28px;
+    height: 6px;
+    background: #000;
+    border-radius: 50%;
+    opacity: 0.3;
+}
+
+@keyframes mayoBounce {
+    0% { transform: translateY(8px) scaleY(0.9); }
+    100% { transform: translateY(-12px) scaleY(1.05); }
+}
+
+.mayoFloor {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 16px;
+    background: #27ae60;
+    border-top: 3px solid #f1c40f;
+}
+
+/* =====================================================
+   CONSOLA Y PANTALLA PRINCIPAL DE JUEGO 3D
+===================================================== */
+#consoleScreen{
+    position:fixed;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    background:#061426;
+}
+
+.consoleTop{
+    height:50px;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    padding:0 14px;
+    background:#081a2e;
+    border-bottom:1px solid #17486e;
+    z-index: 50;
+    gap: 10px;
+}
+
+.consoleLogo{
+    color:var(--orange);
+    font-size:18px;
+    font-weight:900;
+    letter-spacing:3px;
+}
+
+.connectionStatus{
+    margin-left:auto;
+    display:flex;
+    align-items:center;
+    gap:7px;
+    color:#8cb8dd;
+    font-size:12px;
+}
+
+.statusDot{
+    width:9px;
+    height:9px;
+    border-radius:50%;
+    background:#666;
+}
+
+.statusDot.on{
+    background:var(--orange);
+    box-shadow: 0 0 12px var(--orange);
+}
+
+/* =====================================================
+   ÁREA DE JUEGO 3D
+===================================================== */
+.gameArea{
+    position:relative;
+    flex:1;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    overflow:hidden;
+    background:#02070d;
+}
+
+#canvas-container {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#gameCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Retícula / Mirilla */
+#crosshair {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px; height: 20px; pointer-events: none; z-index: 30;
+}
+#crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: rgba(255,255,255,0.9);
+    box-shadow: 0 0 3px rgba(0,0,0,0.8);
+}
+#crosshair::before { top: 8px; left: 0; width: 20px; height: 4px; }
+#crosshair::after { top: 0; left: 8px; width: 4px; height: 20px; }
+
+/* Capa de interfaz de usuario */
+.ui-layer {
+    position: absolute; inset: 0; pointer-events: none; z-index: 40;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 10px;
+}
+.interactive-el {
+    pointer-events: auto; touch-action: manipulation;
+}
+
+/* Encabezado HUD */
+.hud-header {
+    display: flex; justify-content: space-between; align-items: flex-start; width: 100%;
+}
+.hud-badge {
+    background: var(--sekai-hud-bg);
+    border: 2px solid #ffffff;
+    box-shadow: 3px 3px 0px #000000;
+    padding: 6px 12px;
+    font-size: clamp(10px, 2.8vw, 12px);
+    font-weight: bold;
+    text-transform: uppercase;
+}
+.hud-badge span { color: #ffeb3b; }
+
+.btn-retro {
+    background: #2c3e50;
+    color: #ffffff;
+    border: 2px solid #ffffff;
+    box-shadow: 3px 3px 0px #000000;
+    padding: 6px 10px;
+    font-size: clamp(10px, 2.5vw, 12px);
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px;
+}
+.btn-retro:active, .btn-retro.active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0px #000000;
+}
+.btn-retro.active {
+    background: #f39c12;
+    color: #000;
+}
+
+/* Píldora de información de objetivo */
+#target-info {
+    position: absolute; top: 52px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    padding: 4px 12px; font-size: 11px; color: #ffeb3b;
+    pointer-events: none; border-radius: 4px; white-space: nowrap;
+    opacity: 0; transition: opacity 0.2s ease;
+}
+#target-info.visible { opacity: 1; }
+
+/* Controles en pantalla */
+.hud-bottom {
+    display: flex; flex-direction: column; gap: 6px; width: 100%; align-items: center;
+}
+.touch-controls-row {
+    width: 100%; display: flex; justify-content: space-between; align-items: flex-end;
+    padding: 0 4px;
+}
+
+/* Joystick */
+#joystick-zone {
+    width: 100px; height: 100px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 3px solid rgba(255, 255, 255, 0.7);
+    border-radius: 50%;
+    position: relative; touch-action: none;
+}
+#joystick-knob {
+    width: 40px; height: 40px;
+    background: #27ae60;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+/* Grupo de Botones de Acción y Vuelo */
+.right-controls {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.fly-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.fly-controls.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.btn-vertical {
+    width: 48px; height: 40px;
+    background: #2980b9;
+    border: 2px solid #ffffff;
+    box-shadow: 2px 2px 0px #000000;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+}
+.btn-vertical:active {
+    background: #1c5980;
+    transform: translate(2px, 2px);
+    box-shadow: 0px 0px 0px #000000;
+}
+
+/* Botón de Acción */
+#action-btn {
+    width: 76px; height: 76px;
+    background: #e67e22;
+    border: 3px solid #ffffff;
+    box-shadow: 3px 3px 0px #000000;
+    border-radius: 50%;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 11px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; overflow: hidden;
+}
+#action-btn:active, #action-btn.holding {
+    background: #d35400;
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0px #000000;
+}
+#action-progress {
+    position: absolute; bottom: 0; left: 0; height: 6px;
+    background: #e74c3c; width: 0%; transition: width 0.03s linear;
+}
+
+/* Contenedor de Hotbar */
+#hotbar-container {
+    width: 100%; max-width: 620px; overflow-x: auto;
+    scrollbar-width: none; -ms-overflow-style: none;
+}
+#hotbar-container::-webkit-scrollbar { display: none; }
+#hotbar {
+    display: flex; gap: 4px; background: var(--sekai-hud-bg);
+    border: 2px solid #ffffff; box-shadow: 3px 3px 0px #000000;
+    padding: 4px; width: max-content; margin: 0 auto;
+}
+.slot-btn {
+    flex: 0 0 48px; height: 48px;
+    background: #2a2a2a; border: 2px solid #555555;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; padding: 2px; color: #ffffff;
+}
+.slot-btn.active {
+    border-color: #f1c40f; background: #414b56;
+    box-shadow: inset 0 0 0 2px #f1c40f; transform: translateY(-2px);
+}
+.slot-icon {
+    width: 18px; height: 18px; margin-bottom: 2px;
+    border: 1px solid rgba(0,0,0,0.5);
+}
+.slot-label {
+    font-size: 7px; font-weight: bold; text-transform: uppercase;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; text-align: center;
+}
+
+/* =====================================================
+   BARRA INFERIOR DE LA CONSOLA
+===================================================== */
+.consoleBottom{
+    height:56px;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    background:#081a2e;
+    border-top:1px solid #17486e;
+    z-index: 50;
+}
+
+.consoleBottom button{
+    padding:10px 14px;
+    border-radius:8px;
+    background:#123250;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.consoleBottom .orange{ background:var(--orange); }
+.consoleBottom .red{ background:#c93636; }
+
+/* =====================================================
+   MODAL CÓDIGO
+===================================================== */
+#connectModal{
+    position:fixed;
+    inset:0;
+    z-index:1000;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#02070dcc;
+}
+
+.modalBox{
+    width:min(400px,90%);
+    padding:28px;
+    text-align:center;
+    background:#091d33;
+    border:2px solid var(--blue);
+    border-radius:22px;
+    box-shadow:0 0 40px #000c;
+}
+
+.modalBox h2{ color:var(--orange); margin-top:0; }
+
+.modalCode{
+    margin:20px 0;
+    font-size:40px;
+    font-weight:900;
+    letter-spacing:8px;
+    color:var(--blue);
+}
+
+.modalStatus{
+    min-height:30px;
+    color:#8cb8dd;
+    font-size:13px;
+    margin-bottom:10px;
+}
+
+.modalButton{
+    width:100%;
+    padding:12px;
+    margin-top:8px;
+    border-radius:10px;
+    background:#123250;
+    cursor:pointer;
+}
+
+.modalButton.red{ background:#c93636; }
+
+/* =====================================================
+   RECEPTOR
+===================================================== */
+#receiverScreen{
+    position:fixed;
+    inset:0;
+    z-index:100;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: radial-gradient(circle, #103d68, #061426 72%);
+}
+
+.receiverBox{
+    width:min(430px,92%);
+    padding:28px;
+    text-align:center;
+    background:#091d33;
+    border:2px solid var(--blue);
+    border-radius:22px;
+    box-shadow: 0 0 40px #087cff44;
+}
+
+.receiverLogo{
+    font-size:40px;
+    font-weight:900;
+    letter-spacing:5px;
+    color:var(--orange);
+}
+
+.receiverTitle{
+    color:var(--blue);
+    font-weight:bold;
+    margin-top:4px;
+}
+
+.receiverText{
+    color:#8db7da;
+    font-size:13px;
+    line-height:1.5;
+}
+
+.codeInputs{
+    display:flex;
+    justify-content:center;
+    gap:6px;
+    margin:22px 0;
+}
+
+.codeInputs input{
+    width:40px;
+    height:50px;
+    border:2px solid #245e8e;
+    border-radius:9px;
+    outline:none;
+    background:#0d2945;
+    color:white;
+    text-align:center;
+    font-size:22px;
+    font-weight:bold;
+}
+
+.codeInputs input:focus{
+    border-color:var(--orange);
+    box-shadow: 0 0 12px #ff760044;
+}
+
+.receiverButton{
+    width:100%;
+    padding:14px;
+    border-radius:11px;
+    background:var(--orange);
+    cursor:pointer;
+}
+
+.receiverDisconnect{
+    width:100%;
+    padding:12px;
+    margin-top:8px;
+    border-radius:11px;
+    background:#c93636;
+    cursor:pointer;
+}
+
+.receiverStatus{
+    min-height:25px;
+    margin-top:14px;
+    color:#ff9d4d;
+    font-size:13px;
+}
+
+/* =====================================================
+   DISPLAY (SOLO RECEPTOR)
+===================================================== */
+#displayScreen{
+    position:fixed;
+    inset:0;
+    z-index:200;
+    background:#000;
+}
+
+#displayVideo{
+    display:block;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    background:#000;
+}
+
+.displayInfo{
+    position:absolute;
+    top:12px;
+    left:12px;
+    padding:8px 12px;
+    border-radius:8px;
+    background:#061426cc;
+    color:var(--orange);
+    font-size:12px;
+}
+
+.displayDisconnect{
+    position:absolute;
+    top:10px;
+    right:10px;
+    padding:10px 14px;
+    border-radius:9px;
+    background:#c93636;
+    color:white;
+    cursor:pointer;
+}
+
+/* =====================================================
+   NOTIFICACIÓN Y ERROR
+===================================================== */
+#toast {
+    position: absolute; top: 15px; left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: #27ae60; border: 3px solid #ffffff;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5); color: #ffffff;
+    padding: 8px 18px; font-size: 13px; font-weight: bold;
+    z-index: 500; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    pointer-events: none;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+#errorBox{
+    position:fixed;
+    z-index:2000;
+    left:50%;
+    bottom:15px;
+    transform:translateX(-50%);
+    width:90%;
+    max-width:450px;
+    padding:12px;
+    background:#38170d;
+    border:1px solid var(--orange);
+    border-radius:10px;
+    color:#ffb27a;
+    text-align:center;
+    font-size:12px;
+}
+
+/* =========================================================
+   ORBIT UI ENHANCEMENT — SOLO INTERFAZ
+   No modifica la lógica ni los controles existentes.
+========================================================= */
+:root{
+    --ui-glass:rgba(7,22,39,.82);
+    --ui-glass-2:rgba(10,31,52,.72);
+    --ui-line:rgba(91,176,255,.30);
+    --ui-glow:rgba(8,124,255,.32);
+    --ui-soft:#9fc8e9;
+}
+
+body{
+    background:
+      radial-gradient(circle at 50% -20%,rgba(8,124,255,.18),transparent 42%),
+      radial-gradient(circle at 100% 100%,rgba(255,118,0,.08),transparent 35%),
+      #061426;
+}
+
+/* Pantallas de inicio */
+.loaderCard,.nameCard,.homeCard,.receiverBox,.modalBox{
+    position:relative;
+    backdrop-filter:blur(18px) saturate(125%);
+    -webkit-backdrop-filter:blur(18px) saturate(125%);
+    background:linear-gradient(145deg,rgba(12,34,57,.94),rgba(5,17,31,.92));
+    border-color:rgba(72,169,255,.72);
+    box-shadow:
+      0 25px 80px rgba(0,0,0,.48),
+      0 0 0 1px rgba(255,255,255,.035) inset,
+      0 0 40px rgba(8,124,255,.12);
+    overflow:hidden;
+}
+.loaderCard::before,.nameCard::before,.homeCard::before,.receiverBox::before,.modalBox::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    background:linear-gradient(120deg,rgba(255,255,255,.06),transparent 28%,transparent 70%,rgba(8,124,255,.05));
+}
+.loaderLogo,.logo,.receiverLogo{
+    text-shadow:0 0 22px rgba(255,118,0,.34),0 0 45px rgba(8,124,255,.12);
+}
+.subtitle,.homeText,.receiverText,.loaderStatusText,.nameCard p{
+    color:var(--ui-soft);
+}
+
+/* Botones más modernos, misma acción */
+.homeButton,.receiverButton,.receiverDisconnect,.modalButton,.consoleBottom button,.playBtn,.btn-retro{
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 8px 20px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.10);
+    transition:transform .16s ease,filter .16s ease,box-shadow .16s ease;
+}
+.homeButton:hover,.receiverButton:hover,.modalButton:hover,.consoleBottom button:hover,.playBtn:hover,.btn-retro:hover{
+    filter:brightness(1.12);
+    box-shadow:0 10px 26px rgba(0,0,0,.30),0 0 18px rgba(8,124,255,.12),inset 0 1px rgba(255,255,255,.12);
+}
+.homeButton:active,.receiverButton:active,.modalButton:active,.consoleBottom button:active,.playBtn:active{
+    transform:translateY(1px) scale(.985);
+}
+
+/* Biblioteca */
+#gameSelectScreen{
+    background:
+      radial-gradient(circle at 15% 5%,rgba(8,124,255,.17),transparent 30%),
+      radial-gradient(circle at 85% 90%,rgba(255,118,0,.08),transparent 28%),
+      #040c17;
+}
+.gameSelectHeader{
+    padding:12px 4px 16px;
+    border-bottom-color:rgba(72,169,255,.24);
+}
+.gameSelectTitle{
+    text-shadow:0 0 18px rgba(255,118,0,.18);
+}
+.gameCard{
+    background:linear-gradient(145deg,rgba(10,31,52,.88),rgba(5,17,30,.92));
+    border-color:rgba(68,132,178,.35);
+    box-shadow:0 14px 35px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.035);
+}
+.gameCard:hover{
+    transform:translateY(-3px);
+    border-color:rgba(8,124,255,.65);
+    box-shadow:0 18px 40px rgba(0,0,0,.35),0 0 25px rgba(8,124,255,.12);
+}
+.gameCard.active{
+    border-color:rgba(255,118,0,.72);
+}
+.gameIconBox{
+    box-shadow:inset 0 0 30px rgba(0,0,0,.35);
+}
+
+/* Consola */
+.consoleTop,.consoleBottom{
+    background:linear-gradient(180deg,rgba(9,29,51,.96),rgba(5,19,33,.96));
+    border-color:rgba(65,140,197,.25);
+    box-shadow:0 4px 20px rgba(0,0,0,.20);
+}
+.consoleTop{
+    height:54px;
+}
+.consoleLogo{
+    text-shadow:0 0 14px rgba(255,118,0,.22);
+}
+.connectionStatus{
+    background:rgba(0,0,0,.18);
+    border:1px solid rgba(255,255,255,.06);
+    padding:6px 10px;
+    border-radius:999px;
+}
+
+/* HUD del juego */
+.hud-badge,.btn-retro,#hotbar{
+    background:rgba(5,16,28,.72);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    border-color:rgba(255,255,255,.55);
+}
+.hud-badge{
+    border-radius:8px;
+    box-shadow:0 8px 20px rgba(0,0,0,.28),0 0 15px rgba(8,124,255,.08);
+}
+#target-info{
+    background:rgba(3,10,18,.78);
+    border-color:rgba(255,255,255,.24);
+    border-radius:999px;
+    padding:6px 13px;
+    box-shadow:0 8px 18px rgba(0,0,0,.25);
+}
+
+/* Joystick y acción */
+#joystick-zone{
+    background:radial-gradient(circle,rgba(29,67,94,.38),rgba(0,0,0,.50));
+    border-color:rgba(255,255,255,.48);
+    box-shadow:0 10px 25px rgba(0,0,0,.30),inset 0 0 25px rgba(8,124,255,.08);
+}
+#joystick-knob{
+    box-shadow:0 0 18px rgba(39,174,96,.34);
+}
+#action-btn{
+    box-shadow:0 10px 25px rgba(0,0,0,.35),0 0 18px rgba(230,126,34,.18);
+}
+.btn-vertical{
+    border-radius:9px;
+    box-shadow:0 7px 18px rgba(0,0,0,.28);
+}
+
+/* Hotbar */
+#hotbar{
+    border-radius:12px;
+    padding:5px;
+    gap:5px;
+    box-shadow:0 10px 28px rgba(0,0,0,.35);
+}
+.slot-btn{
+    border-radius:8px;
+    background:rgba(33,42,52,.86);
+    border-color:rgba(255,255,255,.12);
+    transition:transform .12s ease,border-color .12s ease,background .12s ease;
+}
+.slot-btn:hover{
+    background:#394754;
+    border-color:rgba(255,255,255,.35);
+}
+.slot-btn.active{
+    border-color:#f1c40f;
+    box-shadow:0 0 16px rgba(241,196,15,.15),inset 0 0 0 2px #f1c40f;
+}
+
+/* Modales */
+#connectModal{
+    background:rgba(1,6,12,.76);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+}
+.modalCode{
+    text-shadow:0 0 25px rgba(8,124,255,.45);
+}
+.codeInputs input{
+    transition:border-color .15s,box-shadow .15s,transform .15s;
+    box-shadow:inset 0 0 18px rgba(0,0,0,.18);
+}
+.codeInputs input:focus{
+    transform:translateY(-2px);
+}
+
+/* Receptor */
+#receiverScreen{
+    background:
+      radial-gradient(circle at 50% 20%,rgba(8,124,255,.17),transparent 34%),
+      radial-gradient(circle at 50% 100%,rgba(255,118,0,.08),transparent 35%),
+      #061426;
+}
+
+/* Display */
+#displayScreen{
+    box-shadow:inset 0 0 80px rgba(8,124,255,.06);
+}
+.displayInfo,.displayDisconnect{
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    box-shadow:0 8px 20px rgba(0,0,0,.30);
+}
+
+/* Scrollbar discreta */
+*{
+    scrollbar-width:thin;
+    scrollbar-color:rgba(72,169,255,.42) transparent;
+}
+*::-webkit-scrollbar{width:6px;height:6px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{
+    background:rgba(72,169,255,.42);
+    border-radius:99px;
+}
+
+/* Adaptación tablet / móvil */
+@media (max-width:700px){
+    .homeCard,.nameCard,.receiverBox,.modalBox{padding:24px 18px}
+    .logo,.receiverLogo{font-size:36px}
+    .gameSelectHeader{margin-bottom:15px}
+    .gamesGrid{grid-template-columns:1fr;gap:12px}
+    .gameCard{padding:14px}
+    .gameIconBox{height:105px}
+    .consoleBottom{
+        height:52px;
+        gap:5px;
+        padding:4px;
+    }
+    .consoleBottom button{
+        padding:9px 8px;
+        font-size:10px;
+    }
+    #joystick-zone{width:88px;height:88px}
+    #action-btn{width:68px;height:68px}
+    .slot-btn{flex-basis:44px;height:44px}
+}
+@media (min-width:701px){
+    .gameCard{min-height:355px}
+}
+
+/* Respeta accesibilidad sin alterar funciones */
+@media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{
+        animation-duration:.001ms!important;
+        animation-iteration-count:1!important;
+        transition-duration:.001ms!important;
+    }
+}
+
+
+/* ===== ORBIT UI REDESIGN v2 ===== */
+:root{
+  --ui-bg:#05070d;
+  --ui-panel:rgba(11,16,28,.82);
+  --ui-panel2:rgba(17,24,39,.92);
+  --ui-line:rgba(126,170,255,.22);
+  --ui-blue:#4da3ff;
+  --ui-cyan:#67e8f9;
+  --ui-orange:#ff8a3d;
+  --ui-green:#45e0a2;
+  --ui-text:#f5f7fb;
+  --ui-muted:#8e9bb2;
+}
+html,body{
+  background:var(--ui-bg)!important;
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;
+}
+button,input{font-family:inherit!important}
+.loaderCard,.nameCard,.homeCard,.receiverBox,.modalBox{
+  background:linear-gradient(145deg,rgba(18,27,45,.94),rgba(5,9,17,.96))!important;
+  border:1px solid var(--ui-line)!important;
+  border-radius:28px!important;
+  box-shadow:0 24px 80px rgba(0,0,0,.5),0 0 50px rgba(77,163,255,.08)!important;
+  backdrop-filter:blur(22px);
+}
+.loaderLogo,.logo,.receiverLogo{color:var(--ui-cyan)!important;text-shadow:0 0 28px rgba(103,232,249,.28)!important}
+.loaderStepTitle,.gameSelectTitle,.receiverTitle{color:var(--ui-blue)!important}
+.homeButton,.receiverButton,.playBtn{
+  border-radius:15px!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  background:linear-gradient(135deg,#368cff,#1555b9)!important;
+  box-shadow:0 10px 28px rgba(34,112,255,.22)!important;
+}
+.homeButton.orange,.receiverButton,.playBtn{background:linear-gradient(135deg,#ff9b50,#ed5e21)!important}
+.homeButton:hover,.receiverButton:hover,.playBtn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.gameSelectScreen{
+  background:
+    radial-gradient(circle at 15% 10%,rgba(77,163,255,.12),transparent 35%),
+    radial-gradient(circle at 85% 85%,rgba(255,138,61,.08),transparent 35%),
+    #05070d!important;
+}
+.gameSelectHeader{
+  max-width:1050px!important;
+  border-bottom:1px solid var(--ui-line)!important;
+  padding:18px 4px!important;
+}
+.gamesGrid{max-width:1050px!important;gap:16px!important}
+.gameCard{
+  background:linear-gradient(160deg,rgba(16,24,40,.95),rgba(7,11,20,.96))!important;
+  border:1px solid var(--ui-line)!important;
+  border-radius:24px!important;
+  padding:14px!important;
+  box-shadow:0 14px 40px rgba(0,0,0,.25)!important;
+}
+.gameCard.active{border-color:rgba(103,232,249,.55)!important;box-shadow:0 0 35px rgba(77,163,255,.12)!important}
+.gameIconBox{border-radius:18px!important;background:#03060b!important}
+.gameTitle{letter-spacing:.5px}
+.gameDesc{color:var(--ui-muted)!important}
+.consoleTop{
+  height:58px!important;
+  padding:0 18px!important;
+  background:rgba(5,9,17,.84)!important;
+  border-bottom:1px solid var(--ui-line)!important;
+  backdrop-filter:blur(16px);
+}
+.consoleLogo{color:var(--ui-cyan)!important;letter-spacing:4px!important}
+.connectionStatus{
+  padding:7px 11px;
+  border:1px solid var(--ui-line);
+  border-radius:999px;
+  background:rgba(13,20,33,.7);
+}
+.gameArea{
+  background:
+    radial-gradient(circle at center,rgba(35,76,115,.10),transparent 45%),
+    #020409!important;
+}
+.ui-layer{padding:14px!important}
+.hud-badge,.btn-retro{
+  border:1px solid var(--ui-line)!important;
+  border-radius:12px!important;
+  box-shadow:0 8px 25px rgba(0,0,0,.28)!important;
+  background:rgba(8,14,25,.78)!important;
+  backdrop-filter:blur(12px);
+}
+.hud-badge{box-shadow:none!important}
+.btn-retro.active{background:linear-gradient(135deg,#ffb45c,#ff7b2d)!important;color:#07101b!important}
+#target-info{
+  top:68px!important;
+  border:1px solid var(--ui-line)!important;
+  border-radius:999px!important;
+  background:rgba(5,9,17,.76)!important;
+  padding:7px 14px!important;
+}
+#joystick-zone{
+  width:118px!important;height:118px!important;
+  border:1px solid rgba(255,255,255,.25)!important;
+  background:rgba(8,14,25,.55)!important;
+  box-shadow:inset 0 0 25px rgba(77,163,255,.07),0 12px 35px rgba(0,0,0,.3);
+  backdrop-filter:blur(8px);
+}
+#joystick-knob{
+  width:48px!important;height:48px!important;
+  background:linear-gradient(145deg,#70e1ff,#347fff)!important;
+  border:2px solid rgba(255,255,255,.85)!important;
+  box-shadow:0 8px 25px rgba(52,127,255,.35);
+}
+#action-btn{
+  width:84px!important;height:84px!important;
+  border:2px solid rgba(255,255,255,.75)!important;
+  background:linear-gradient(145deg,#ffae5b,#ec6125)!important;
+  box-shadow:0 12px 30px rgba(255,106,37,.22)!important;
+}
+.btn-vertical{
+  border:1px solid rgba(255,255,255,.3)!important;
+  border-radius:12px!important;
+  background:rgba(35,108,176,.85)!important;
+}
+#hotbar{
+  border:1px solid var(--ui-line)!important;
+  border-radius:18px!important;
+  padding:6px!important;
+  background:rgba(5,9,17,.82)!important;
+  box-shadow:0 12px 35px rgba(0,0,0,.38)!important;
+  backdrop-filter:blur(15px);
+}
+.slot-btn{
+  flex-basis:52px!important;height:52px!important;
+  border:1px solid rgba(255,255,255,.09)!important;
+  border-radius:11px!important;
+  background:rgba(20,27,41,.9)!important;
+}
+.slot-btn.active{
+  border-color:var(--ui-cyan)!important;
+  background:rgba(55,105,150,.32)!important;
+  box-shadow:inset 0 0 0 1px var(--ui-cyan),0 0 16px rgba(103,232,249,.12)!important;
+}
+.consoleBottom{
+  height:62px!important;
+  background:rgba(5,9,17,.92)!important;
+  border-top:1px solid var(--ui-line)!important;
+  backdrop-filter:blur(15px);
+}
+.consoleBottom button{
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-radius:12px!important;
+  background:#101b2d!important;
+}
+.consoleBottom .orange{background:linear-gradient(135deg,#ff9b50,#ed5e21)!important}
+.consoleBottom .red{background:#a92f45!important}
+#connectModal{background:rgba(1,4,9,.76)!important;backdrop-filter:blur(10px)}
+.modalCode{color:var(--ui-cyan)!important;text-shadow:0 0 20px rgba(103,232,249,.2)}
+.receiverScreen{
+  background:
+    radial-gradient(circle at 50% 20%,rgba(77,163,255,.15),transparent 40%),
+    #05070d!important;
+}
+.codeInputs input{
+  border:1px solid var(--ui-line)!important;
+  border-radius:13px!important;
+  background:#091221!important;
+}
+.displayInfo{
+  border:1px solid var(--ui-line)!important;
+  border-radius:999px!important;
+  backdrop-filter:blur(10px);
+}
+.displayDisconnect{border-radius:12px!important}
+#controllerPanel{
+  position:absolute;left:50%;top:14px;transform:translateX(-50%);
+  z-index:70;pointer-events:none;
+  display:flex;align-items:center;gap:9px;
+  padding:8px 13px;border:1px solid rgba(103,232,249,.22);
+  border-radius:999px;background:rgba(5,9,17,.72);
+  backdrop-filter:blur(14px);box-shadow:0 10px 30px rgba(0,0,0,.25);
+  color:#aebbd0;font-size:11px;opacity:.9;
+}
+#controllerDot{
+  width:8px;height:8px;border-radius:50%;background:#64748b;
+}
+#controllerDot.on{background:var(--ui-green);box-shadow:0 0 12px var(--ui-green)}
+#controllerName{color:#e8f7ff;font-weight:800}
+#controllerHelp{
+  position:absolute;right:14px;top:72px;z-index:60;pointer-events:none;
+  max-width:250px;padding:10px 12px;border:1px solid var(--ui-line);
+  border-radius:14px;background:rgba(5,9,17,.62);backdrop-filter:blur(12px);
+  color:#8e9bb2;font-size:10px;line-height:1.45;
+}
+@media(max-width:700px){
+  .consoleBottom{height:52px!important}
+  .consoleBottom button{padding:8px 9px!important;font-size:10px!important}
+  #controllerHelp{display:none}
+  #controllerPanel{top:8px;font-size:9px}
+  .ui-layer{padding:9px!important}
+  #joystick-zone{width:102px!important;height:102px!important}
+  #action-btn{width:72px!important;height:72px!important}
+  .slot-btn{flex-basis:45px!important;height:45px!important}
+}
+
+
+/* ===== ORBIT MOTION SYSTEM ===== */
+@keyframes orbitBoot{
+  0%{opacity:0;transform:scale(.86) translateY(20px);filter:blur(10px)}
+  55%{opacity:1;transform:scale(1.03) translateY(0);filter:blur(0)}
+  100%{transform:scale(1)}
+}
+@keyframes orbitFloat{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-7px)}
+}
+@keyframes orbitGlow{
+  0%,100%{box-shadow:0 0 0 rgba(77,163,255,0)}
+  50%{box-shadow:0 0 30px rgba(77,163,255,.22)}
+}
+@keyframes scanLine{
+  0%{transform:translateY(-120%)}
+  100%{transform:translateY(120%)}
+}
+@keyframes pulseDot{
+  0%,100%{transform:scale(1);opacity:.65}
+  50%{transform:scale(1.45);opacity:1}
+}
+@keyframes slideUp{
+  from{opacity:0;transform:translateY(24px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes slideRight{
+  from{opacity:0;transform:translateX(-24px)}
+  to{opacity:1;transform:translateX(0)}
+}
+@keyframes cardIn{
+  from{opacity:0;transform:perspective(700px) rotateX(8deg) translateY(20px) scale(.96)}
+  to{opacity:1;transform:perspective(700px) rotateX(0) translateY(0) scale(1)}
+}
+@keyframes pressPop{
+  0%{transform:scale(1)}
+  45%{transform:scale(.92)}
+  100%{transform:scale(1)}
+}
+@keyframes connectionPulse{
+  0%{border-color:rgba(103,232,249,.18);box-shadow:0 0 0 rgba(103,232,249,0)}
+  50%{border-color:rgba(103,232,249,.7);box-shadow:0 0 25px rgba(103,232,249,.2)}
+  100%{border-color:rgba(103,232,249,.18);box-shadow:0 0 0 rgba(103,232,249,0)}
+}
+@keyframes controllerConnected{
+  from{transform:scale(.7);opacity:0}
+  to{transform:scale(1);opacity:1}
+}
+@keyframes hotbarSelect{
+  0%{transform:translateY(5px) scale(.9)}
+  60%{transform:translateY(-3px) scale(1.08)}
+  100%{transform:translateY(0) scale(1)}
+}
+@keyframes screenFlash{
+  0%{opacity:.45}
+  100%{opacity:0}
+}
+@keyframes loadingShimmer{
+  0%{background-position:-300px 0}
+  100%{background-position:300px 0}
+}
+
+.loaderCard,.nameCard,.homeCard,.receiverBox,.modalBox{
+  animation:orbitBoot .7s cubic-bezier(.2,.8,.2,1) both;
+}
+.loaderLogo,.logo,.receiverLogo{
+  animation:orbitFloat 3.2s ease-in-out infinite,orbitGlow 3.2s ease-in-out infinite;
+}
+.gameCard{
+  animation:cardIn .55s cubic-bezier(.2,.8,.2,1) both;
+  animation-delay:calc(var(--card-index,0) * 70ms);
+  transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease;
+}
+.gameCard:hover{
+  transform:translateY(-8px) scale(1.015)!important;
+}
+.homeButton,.receiverButton,.playBtn,.btn-retro,.slot-btn,.consoleBottom button{
+  transition:transform .16s ease,filter .16s ease,box-shadow .2s ease;
+}
+.homeButton:active,.receiverButton:active,.playBtn:active,.btn-retro:active,
+.consoleBottom button:active,.slot-btn:active{
+  animation:pressPop .2s ease;
+}
+.consoleTop{animation:slideRight .5s ease both}
+.consoleBottom{animation:slideUp .5s ease both}
+#controllerPanel{animation:slideUp .5s ease .15s both}
+#controllerDot{animation:pulseDot 1.8s ease-in-out infinite}
+#controllerDot.on{animation:controllerConnected .35s ease,pulseDot 1.8s ease-in-out .35s infinite}
+#controllerPanel.connected{animation:connectionPulse 1.8s ease-in-out infinite}
+#controllerHelp{animation:slideRight .6s ease .3s both}
+#hotbar{animation:slideUp .55s ease .25s both}
+.slot-btn.active{animation:hotbarSelect .25s cubic-bezier(.2,.8,.2,1)}
+#target-info{animation:slideUp .45s ease .1s both}
+#joystick-zone{transition:box-shadow .2s ease,transform .2s ease}
+#joystick-zone.active{transform:scale(1.04);box-shadow:inset 0 0 35px rgba(77,163,255,.16),0 0 25px rgba(77,163,255,.16)}
+#joystick-knob{transition:transform .08s linear}
+#action-btn{transition:transform .12s ease,filter .12s ease}
+#action-btn:active{transform:scale(.88);filter:brightness(1.2)}
+#connectModal{animation:screenFlash .35s ease}
+.connectionStatus.connected{animation:connectionPulse 1.8s infinite}
+.gameArea::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:2;
+  opacity:.035;
+  background:linear-gradient(to bottom,transparent 0%,rgba(255,255,255,.18) 50%,transparent 100%);
+  background-size:100% 180px;
+  animation:scanLine 7s linear infinite;
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms!important;
+    animation-iteration-count:1!important;
+    scroll-behavior:auto!important;
+    transition-duration:.001ms!important;
+  }
+}
+
+
+body.orbit-transition::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  pointer-events:none;
+  background:radial-gradient(circle,rgba(103,232,249,.14),transparent 55%);
+  animation:screenFlash .42s ease forwards;
+}
+.motion-pressed{filter:brightness(1.2)!important}
+
+
+/* ===== MOBILE CAMERA FIX ===== */
+#gameArea, .gameArea, #canvas-container, canvas{
+  touch-action:none!important;
+  -webkit-user-select:none!important;
+  user-select:none!important;
+}
+#joystick-zone, #action-btn, #hotbar, .ui-layer{
+  touch-action:none!important;
+}
+.mobile-camera-pointer{
+  cursor:crosshair;
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- =====================================================
+     1. PANTALLA DE DESCARGA / CARGA DE RECURSOS
+===================================================== -->
+<section id="loaderScreen">
+    <div class="loaderCard">
+        <div class="loaderLogo">ORBIT</div>
+        <div class="loaderStepTitle" id="loaderStepTitle">Iniciando descarga...</div>
+        <div class="loaderProgressBarBg">
+            <div class="loaderProgressBarFill" id="loaderProgressBarFill"></div>
+        </div>
+        <div class="loaderStatusText" id="loaderStatusText">Cargando 0%</div>
+    </div>
+</section>
+
+<!-- =====================================================
+     2. REGISTRO DE USUARIO / NOMBRE
+===================================================== -->
+<section id="nameScreen" class="hidden">
+    <div class="nameCard">
+        <h2>PERFIL DE JUGADOR</h2>
+        <p>Escribe tu nombre para iniciar la consola ORBIT.</p>
+        <input type="text" id="playerNameInput" class="nameInput" placeholder="Tu Nombre / GamerTag" maxlength="16" autocomplete="off">
+        <button class="homeButton orange" onclick="savePlayerName()">CONTINUAR ➔</button>
+    </div>
+</section>
+
+<!-- =====================================================
+     INICIO / HUB PRINCIPAL
+===================================================== -->
+<section id="home" class="hidden">
+    <div class="homeCard">
+        <div class="logo">ORBIT</div>
+        <div class="subtitle">WIFI GAME CONSOLE</div><div style="margin-top:10px;color:#67e8f9;font-size:11px;letter-spacing:1px;">🎮 GAMEPAD + TÁCTIL + TECLADO</div>
+        <div class="playerTag" id="displayPlayerName">👤 Jugador</div>
+        <div class="homeText">
+            Conecta dos dispositivos mediante Wi-Fi.<br>
+            La consola ejecuta y controla los juegos, y el segundo dispositivo funciona como pantalla receptora.
+        </div>
+        <button class="homeButton orange" onclick="enterConsoleHub()">🎮 MODO CONSOLA</button>
+        <button class="homeButton" onclick="enterReceiver()">📺 USAR COMO RECEPTOR</button>
+    </div>
+</section>
+
+<!-- =====================================================
+     3. SELECCIÓN DE JUEGOS (MENÚ DE LA CONSOLA)
+===================================================== -->
+<section id="gameSelectScreen" class="hidden">
+    <div class="gameSelectHeader">
+        <div>
+            <div class="gameSelectTitle">BIBLIOTECA DE JUEGOS</div>
+            <div style="font-size: 12px; color: #8cb8dd;" id="gameSelectPlayerTag">Jugador: -</div>
+        </div>
+        <button class="btn-retro interactive-el" onclick="openWifiConnectFromMenu()">📡 CONECTAR PANTALLA</button>
+    </div>
+
+    <div class="gamesGrid">
+        <!-- JUEGO 1: VOXEL MINE -->
+        <div class="gameCard active">
+            <span class="gameBadge badgePlayable">DISPONIBLE</span>
+            <div class="gameIconBox" style="background: linear-gradient(135deg, #1b3a4b, #061426);">
+                <div style="font-size: 45px;">⛏️</div>
+            </div>
+            <div class="gameTitle">VOXEL MINE 3D</div>
+            <div class="gameDesc">Construye, destruye y crea circuitos interactivos de Redstone en un mundo voxel 3D en tiempo real.</div>
+            <button class="playBtn" onclick="launchVoxelMine()">▶ JUGAR AHORA</button>
+        </div>
+
+        <!-- JUEGO 2: MAYO 2D (PRÓXIMAMENTE) -->
+        <div class="gameCard disabled">
+            <span class="gameBadge badgeSoon">PRÓXIMAMENTE</span>
+            <div class="gameIconBox">
+                <div class="mayoAnimatedBox">
+                    <div class="mayoCharacter"></div>
+                    <div class="mayoFloor"></div>
+                </div>
+            </div>
+            <div class="gameTitle">MAYO 2D</div>
+            <div class="gameDesc">Plataformas retro 2D con físicas pixel art, animaciones fluidas, mapas desafiantes y poderes especiales.</div>
+            <button class="playBtn disabledBtn" disabled>🔒 PRÓXIMAMENTE</button>
+        </div>
+    </div>
+</section>
+
+<!-- =====================================================
+     PANTALLA CONSOLA (VOXEL MINE 3D)
+===================================================== -->
+<section id="consoleScreen" class="hidden">
+    <header class="consoleTop">
+        <div class="consoleLogo">ORBIT</div>
+        <button class="btn-retro interactive-el" onclick="returnToGameSelect()">🎮 MENÚ JUEGOS</button><button id="controllerScanBtn" class="btn-retro interactive-el" title="Buscar mando">🎮 MANDO</button>
+        <div class="connectionStatus">
+            <span id="statusDot" class="statusDot"></span>
+            <span id="statusText">SIN RECEPTOR</span>
+        </div>
+    </header>
+
+    <main class="gameArea">
+        <!-- CANVAS Y ELEMENTOS DE VOXEL SANDBOX 3D -->
+        <div id="canvas-container">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <div id="crosshair"></div>
+        <div id="target-info">Apuntando: Suelo</div>
+        <div id="controllerPanel">
+            <span id="controllerDot"></span>
+            <span>MANDO</span>
+            <span id="controllerName">NO CONECTADO</span>
+        </div>
+        <div id="controllerHelp">
+            <b>MANDO</b><br>
+            Stick izquierdo: mover · Stick derecho: cámara<br>
+            A: colocar · mantener A: romper · B: volar<br>
+            LB/RB: cambiar bloque · D-pad: vuelo
+        </div>
+
+
+        <!-- CAPA DE INTERFAZ DEL JUEGO -->
+        <div class="ui-layer">
+            <div class="hud-header">
+                <div class="hud-badge">BLOQUES: <span id="placed-count">0</span></div>
+                <div style="display: flex; gap: 6px;">
+                    <button id="btn-fly" class="btn-retro interactive-el">
+                        <span>✈ VOLAR: OFF</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="hud-bottom">
+                <div class="touch-controls-row">
+                    <div id="joystick-zone" class="interactive-el">
+                        <div id="joystick-knob"></div>
+                    </div>
+
+                    <div class="right-controls">
+                        <div id="fly-controls" class="fly-controls">
+                            <button id="btn-up" class="btn-vertical interactive-el">▲</button>
+                            <button id="btn-down" class="btn-vertical interactive-el">▼</button>
+                        </div>
+                        <button id="action-btn" class="interactive-el">
+                            <span>ACCIÓN</span>
+                            <div id="action-progress"></div>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="hotbar-container" class="interactive-el">
+                    <div id="hotbar">
+                        <button class="slot-btn active" data-material="redstone_dust">
+                            <div class="slot-icon" style="background:#e74c3c;"></div>
+                            <span class="slot-label">Redstone</span>
+                        </button>
+                        <button class="slot-btn" data-material="lever">
+                            <div class="slot-icon" style="background:#7f8c8d;"></div>
+                            <span class="slot-label">Palanca</span>
+                        </button>
+                        <button class="slot-btn" data-material="redstone_torch">
+                            <div class="slot-icon" style="background:#ff3300;"></div>
+                            <span class="slot-label">Antorcha</span>
+                        </button>
+                        <button class="slot-btn" data-material="redstone_lamp">
+                            <div class="slot-icon" style="background:#d35400;"></div>
+                            <span class="slot-label">Lámpara</span>
+                        </button>
+                        <button class="slot-btn" data-material="piston">
+                            <div class="slot-icon" style="background:#8e44ad;"></div>
+                            <span class="slot-label">Pistón</span>
+                        </button>
+                        <button class="slot-btn" data-material="sticky_piston">
+                            <div class="slot-icon" style="background:#27ae60;"></div>
+                            <span class="slot-label">Pegajoso</span>
+                        </button>
+                        <button class="slot-btn" data-material="repeater">
+                            <div class="slot-icon" style="background:#95a5a6;"></div>
+                            <span class="slot-label">Repetidor</span>
+                        </button>
+                        <button class="slot-btn" data-material="comparator">
+                            <div class="slot-icon" style="background:#bdc3c7;"></div>
+                            <span class="slot-label">Comparador</span>
+                        </button>
+                        <button class="slot-btn" data-material="wood">
+                            <div class="slot-icon" style="background:#8B5A2B;"></div>
+                            <span class="slot-label">Madera</span>
+                        </button>
+                        <button class="slot-btn" data-material="stone">
+                            <div class="slot-icon" style="background:#808080;"></div>
+                            <span class="slot-label">Piedra</span>
+                        </button>
+                        <button class="slot-btn" data-material="brick">
+                            <div class="slot-icon" style="background:#B22222;"></div>
+                            <span class="slot-label">Ladrillo</span>
+                        </button>
+                        <button class="slot-btn" data-material="wool">
+                            <div class="slot-icon" style="background:#E8E8E8;"></div>
+                            <span class="slot-label">Lana</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="consoleBottom">
+        <button class="orange" onclick="openConnection()">📡 CONECTAR PANTALLA</button>
+        <button id="btn-reset" onclick="clearMap()">↻ LIMPIAR</button>
+        <button onclick="goFullscreen()">⛶ PANTALLA COMPLETA</button>
+        <button class="red" onclick="disconnectHost()">DESCON.</button>
+    </footer>
+</section>
+
+<!-- =====================================================
+     MODAL CONSOLA
+===================================================== -->
+<section id="connectModal" class="hidden">
+    <div class="modalBox">
+        <h2>CONECTAR RECEPTOR</h2>
+        <p>Escribe este código en el otro dispositivo.</p>
+        <div id="hostCode" class="modalCode">------</div>
+        <div id="hostStatus" class="modalStatus">Preparando conexión...</div>
+        <button class="modalButton red" onclick="disconnectHost()">DESCONECTAR</button>
+        <button class="modalButton" onclick="closeConnectionModal()">CERRAR</button>
+    </div>
+</section>
+
+<!-- =====================================================
+     RECEPTOR
+===================================================== -->
+<section id="receiverScreen" class="hidden">
+    <div class="receiverBox">
+        <div class="receiverLogo">ORBIT</div>
+        <div class="receiverTitle">PANTALLA RECEPTORA</div>
+        <p class="receiverText">Introduce el código que aparece en la consola.</p>
+        
+        <div class="codeInputs">
+            <input id="code1" maxlength="1" inputmode="numeric" oninput="codeInput(1)">
+            <input id="code2" maxlength="1" inputmode="numeric" oninput="codeInput(2)">
+            <input id="code3" maxlength="1" inputmode="numeric" oninput="codeInput(3)">
+            <input id="code4" maxlength="1" inputmode="numeric" oninput="codeInput(4)">
+            <input id="code5" maxlength="1" inputmode="numeric" oninput="codeInput(5)">
+            <input id="code6" maxlength="1" inputmode="numeric" oninput="codeInput(6)">
+        </div>
+
+        <button class="receiverButton" onclick="connectReceiver()">CONECTAR</button>
+        <button class="receiverDisconnect" onclick="disconnectReceiver()">DESCONECTAR</button>
+        <div id="receiverStatus" class="receiverStatus">Esperando código...</div>
+    </div>
+</section>
+
+<!-- =====================================================
+     DISPLAY (SOLO RECEPTOR)
+===================================================== -->
+<section id="displayScreen" class="hidden">
+    <video id="displayVideo" autoplay playsinline></video>
+    <div class="displayInfo">● ORBIT DISPLAY</div>
+    <button class="displayDisconnect" onclick="disconnectReceiver()">DESCONECTAR</button>
+</section>
+
+<div id="toast">¡MAPA REINICIADO!</div>
+<div id="errorBox" class="hidden"></div>
+
+<!-- =====================================================
+     CÓDIGO DE LÓGICA Y JUEGO
+===================================================== -->
+<script type="module">
+import * as THREE from 'three';
+
+// Prevenir errores no capturados de sandbox iframe
+window.addEventListener('unhandledrejection', function(event) {
+    if (event.reason && (event.reason.name === 'SecurityError' || String(event.reason).includes('WebSocket') || String(event.reason).includes('Canvas') || String(event.reason).includes('PeerJS'))) {
+        event.preventDefault();
+        console.warn('Conexión WebRTC / WebSocket restringida en este visor:', event.reason.message || event.reason);
+    }
+});
+
+window.addEventListener('error', function(event) {
+    if (event.message && (event.message.includes('WebSocket') || event.message.includes('PeerJS') || event.message.includes('SecurityError'))) {
+        event.preventDefault();
+        return true;
+    }
+});
+
+/* =====================================================
+   ESTADO GLOBAL DE NAVEGACIÓN Y PERFIL
+===================================================== */
+let playerName = "Jugador";
+let peer = null;
+let dataConnection = null;
+let videoCall = null;
+let gameStream = null;
+let hostCode = null;
+let isConsole = false;
+let isReceiver = false;
+
+/* =====================================================
+   SECUENCIA DE INICIO Y CARGA DE RECURSOS
+===================================================== */
+window.addEventListener('DOMContentLoaded', () => {
+    startLoadingSequence();
+});
+
+function startLoadingSequence() {
+    const loaderTitle = document.getElementById('loaderStepTitle');
+    const loaderFill = document.getElementById('loaderProgressBarFill');
+    const loaderStatus = document.getElementById('loaderStatusText');
+
+    const steps = [
+        { title: "Descargando recursos del sistema...", duration: 1200, startPct: 0, endPct: 35 },
+        { title: "Descargando Voxel Mine 3D Engine...", duration: 1500, startPct: 35, endPct: 75 },
+        { title: "Descargando Assets, Sonidos y Texturas...", duration: 1000, startPct: 75, endPct: 100 }
+    ];
+
+    let currentStep = 0;
+
+    function runStep() {
+        if (currentStep >= steps.length) {
+            setTimeout(() => {
+                document.getElementById('loaderScreen').classList.add('hidden');
+                document.getElementById('nameScreen').classList.remove('hidden');
+            }, 400);
+            return;
+        }
+
+        const step = steps[currentStep];
+        loaderTitle.textContent = step.title;
+
+        let startTime = performance.now();
+
+        function animateProgress(now) {
+            let elapsed = now - startTime;
+            let progress = Math.min(elapsed / step.duration, 1);
+            let currentPct = Math.floor(step.startPct + progress * (step.endPct - step.startPct));
+
+            loaderFill.style.width = `${currentPct}%`;
+            loaderStatus.textContent = `Cargando ${currentPct}%`;
+
+            if (progress < 1) {
+                requestAnimationFrame(animateProgress);
+            } else {
+                currentStep++;
+                setTimeout(runStep, 200);
+            }
+        }
+
+        requestAnimationFrame(animateProgress);
+    }
+
+    runStep();
+}
+
+/* =====================================================
+   REGISTRO Y GUARDADO DEL JUGADOR
+===================================================== */
+window.savePlayerName = function() {
+    const input = document.getElementById('playerNameInput');
+    const val = input.value.trim();
+    if (val.length > 0) {
+        playerName = val;
+    } else {
+        playerName = "Jugador " + Math.floor(Math.random() * 900 + 100);
+    }
+
+    document.getElementById('displayPlayerName').textContent = `👤 ${playerName}`;
+    document.getElementById('gameSelectPlayerTag').textContent = `Jugador: ${playerName}`;
+
+    document.getElementById('nameScreen').classList.add('hidden');
+    document.getElementById('home').classList.remove('hidden');
+};
+
+/* =====================================================
+   MODOS DE NAVEGACIÓN DE PANTALLA
+===================================================== */
+window.enterConsoleHub = function() {
+    isConsole = true;
+    isReceiver = false;
+
+    document.getElementById("home").classList.add("hidden");
+    document.getElementById("receiverScreen").classList.add("hidden");
+    document.getElementById("displayScreen").classList.add("hidden");
+    document.getElementById("consoleScreen").classList.add("hidden");
+    document.getElementById("gameSelectScreen").classList.remove("hidden");
+}
+
+window.enterReceiver = function(){
+    isConsole = false;
+    isReceiver = true;
+
+    document.getElementById("home").classList.add("hidden");
+    document.getElementById("consoleScreen").classList.add("hidden");
+    document.getElementById("gameSelectScreen").classList.add("hidden");
+    document.getElementById("displayScreen").classList.add("hidden");
+    document.getElementById("receiverScreen").classList.remove("hidden");
+    document.getElementById("displayScreen").style.display = "";
+}
+
+window.launchVoxelMine = function() {
+    document.getElementById("gameSelectScreen").classList.add("hidden");
+    document.getElementById("consoleScreen").classList.remove("hidden");
+    init3DGame();
+};
+
+window.returnToGameSelect = function() {
+    document.getElementById("consoleScreen").classList.add("hidden");
+    document.getElementById("gameSelectScreen").classList.remove("hidden");
+};
+
+window.openWifiConnectFromMenu = function() {
+    window.openConnection();
+};
+
+function generateCode(){
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+/* =====================================================
+   CONEXIÓN WEBRTC (PEERJS)
+===================================================== */
+window.openConnection = function(){
+    document.getElementById("connectModal").classList.remove("hidden");
+
+    if(peer) return;
+
+    hostCode = generateCode();
+    document.getElementById("hostCode").textContent = hostCode;
+    document.getElementById("hostStatus").textContent = "Conectando con el servidor...";
+
+    try {
+        peer = new Peer(hostCode, { debug: 0 });
+    } catch(err) {
+        console.warn("No se pudo instanciar PeerJS en este entorno:", err);
+        document.getElementById("hostStatus").textContent = "⚠️ WebRTC restringido en iFrame.";
+        showError("WebSockets bloqueados por el iFrame. Para streaming WebRTC, abre la página en una pestaña independiente.");
+        return;
+    }
+
+    peer.on("open", function(){
+        document.getElementById("hostStatus").textContent = "Esperando receptor...";
+    });
+
+    peer.on("connection", function(conn){
+        if(!isConsole){
+            conn.close();
+            return;
+        }
+
+        dataConnection = conn;
+        conn.on("open", function(){
+            setHostConnected();
+            document.getElementById("hostStatus").textContent = "✓ Receptor conectado";
+
+            setTimeout(function(){
+                startStreaming(conn.peer);
+            }, 500);
+        });
+
+        conn.on("close", function(){
+            setHostDisconnected();
+        });
+    });
+
+    peer.on("error", function(error){
+        console.warn("PeerJS Host Error:", error.type || error);
+        document.getElementById("hostStatus").textContent = "⚠️ Conexión de red bloqueada";
+        showError("Red WebRTC no permitida en este visor. Abre en una nueva ventana para conectar dispositivos.");
+    });
+}
+
+function createGameStream(){
+    if(gameStream) return gameStream;
+
+    const canvas = document.getElementById("gameCanvas");
+    if(!canvas || !canvas.captureStream){
+        showError("Tu navegador no soporta transmisión del canvas.");
+        return null;
+    }
+
+    // Transmitir a 30 FPS sólo el canvas del juego
+    gameStream = canvas.captureStream(30);
+    return gameStream;
+}
+
+function startStreaming(receiverId){
+    if(!isConsole) return;
+    const stream = createGameStream();
+    if(!stream) return;
+
+    videoCall = peer.call(receiverId, stream, {
+        metadata: { application: "ORBIT", type: "GAME_CANVAS_3D" }
+    });
+
+    if(!videoCall){
+        showError("No se pudo iniciar la transmisión.");
+        return;
+    }
+
+    videoCall.on("close", function(){ setHostDisconnected(); });
+    videoCall.on("error", function(error){
+        console.error("VIDEO ERROR", error);
+        setHostDisconnected();
+    });
+
+    document.getElementById("hostStatus").textContent = "📺 Juego transmitiéndose...";
+}
+
+function setHostConnected(){
+    document.getElementById("statusDot").classList.add("on");
+    document.getElementById("statusText").textContent = "RECEPTOR CONECTADO";
+}
+
+function setHostDisconnected(){
+    document.getElementById("statusDot").classList.remove("on");
+    document.getElementById("statusText").textContent = "SIN RECEPTOR";
+    const status = document.getElementById("hostStatus");
+    if(status) status.textContent = "Receptor desconectado.";
+}
+
+window.disconnectHost = function(){
+    if(videoCall){ try{ videoCall.close(); }catch(e){} videoCall = null; }
+    if(dataConnection){ try{ dataConnection.close(); }catch(e){} dataConnection = null; }
+    if(peer){ try{ peer.destroy(); }catch(e){} peer = null; }
+    if(gameStream){
+        gameStream.getTracks().forEach(track => track.stop());
+        gameStream = null;
+    }
+    setHostDisconnected();
+    document.getElementById("hostCode").textContent = "------";
+    document.getElementById("hostStatus").textContent = "Desconectado.";
+}
+
+window.closeConnectionModal = function(){
+    document.getElementById("connectModal").classList.add("hidden");
+}
+
+/* RECEPTOR */
+window.connectReceiver = function(){
+    if(!isReceiver) return;
+
+    let code = "";
+    for(let i=1; i<=6; i++){
+        code += document.getElementById("code"+i).value;
+    }
+
+    const status = document.getElementById("receiverStatus");
+    if(code.length !== 6){
+        status.textContent = "Introduce los 6 números.";
+        return;
+    }
+
+    status.textContent = "Buscando consola...";
+
+    try {
+        peer = new Peer({ debug: 0 });
+    } catch(err) {
+        console.warn("No se pudo instanciar PeerJS Receptor:", err);
+        status.textContent = "⚠️ WebRTC restringido en este visor.";
+        showError("Para conectar la consola, abre este archivo en una pestaña de navegador dedicada.");
+        return;
+    }
+
+    peer.on("open", function(){
+        dataConnection = peer.connect(code, { reliable: true });
+
+        dataConnection.on("open", function(){
+            status.textContent = "✓ Consola encontrada. Esperando vídeo...";
+        });
+
+        dataConnection.on("close", function(){
+            hideDisplay();
+            status.textContent = "Consola desconectada.";
+        });
+    });
+
+    peer.on("call", function(call){
+        if(!isReceiver){
+            call.close();
+            return;
+        }
+
+        videoCall = call;
+        call.answer();
+
+        call.on("stream", function(stream){
+            if(isReceiver) showDisplay(stream);
+        });
+
+        call.on("close", function(){ hideDisplay(); });
+        call.on("error", function(error){
+            console.warn("Call error:", error);
+            hideDisplay();
+        });
+    });
+
+    peer.on("error", function(error){
+        console.warn("PeerJS Receiver Error:", error.type || error);
+        status.textContent = "⚠️ WebRTC no disponible en visor";
+        showError("WebSocket restringido en este iFrame. Prueba abrir el HTML directamente en tu navegador.");
+    });
+}
+
+function showDisplay(stream){
+    if(!isReceiver) return;
+    const video = document.getElementById("displayVideo");
+    video.srcObject = stream;
+
+    document.getElementById("receiverScreen").classList.add("hidden");
+    document.getElementById("displayScreen").classList.remove("hidden");
+    video.play().catch(e => console.log("Autoplay:", e));
+}
+
+function hideDisplay(){
+    const video = document.getElementById("displayVideo");
+    video.pause();
+    video.srcObject = null;
+    document.getElementById("displayScreen").classList.add("hidden");
+    if(isReceiver){
+        document.getElementById("receiverScreen").classList.remove("hidden");
+    }
+}
+
+window.disconnectReceiver = function(){
+    if(videoCall){ try{ videoCall.close(); }catch(e){} videoCall = null; }
+    if(dataConnection){ try{ dataConnection.close(); }catch(e){} dataConnection = null; }
+    if(peer){ try{ peer.destroy(); }catch(e){} peer = null; }
+    hideDisplay();
+    document.getElementById("receiverStatus").textContent = "Desconectado.";
+}
+
+window.codeInput = function(number){
+    const input = document.getElementById("code"+number);
+    input.value = input.value.replace(/[^0-9]/g, "");
+
+    if(input.value && number < 6){
+        document.getElementById("code"+(number+1)).focus();
+    }
+    if(number === 6 && input.value){
+        let code="";
+        for(let i=1; i<=6; i++) code += document.getElementById("code"+i).value;
+        if(code.length===6) setTimeout(connectReceiver, 150);
+    }
+}
+
+window.goFullscreen = function(){
+    const area = document.getElementById("gameCanvas");
+    if(area && area.requestFullscreen) area.requestFullscreen();
+}
+
+function showError(message){
+    const box = document.getElementById("errorBox");
+    box.textContent = message;
+    box.classList.remove("hidden");
+    setTimeout(() => box.classList.add("hidden"), 5000);
+}
+
+
+/* =====================================================
+   MOTOR GRÁFICO VOXEL SANDBOX 3D (THREE.JS)
+===================================================== */
+
+let audioCtx = null;
+function playSound(type) {
+  try {
+    if (!audioCtx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) audioCtx = new AudioContext();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (!audioCtx) return;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+
+    if (type === 'place') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.exponentialRampToValueAtTime(340, now + 0.08);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+      osc.start(now); osc.stop(now + 0.08);
+    } else if (type === 'break') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(240, now);
+      osc.frequency.exponentialRampToValueAtTime(60, now + 0.12);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+      osc.start(now); osc.stop(now + 0.12);
+    } else if (type === 'piston') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.exponentialRampToValueAtTime(200, now + 0.06);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.06);
+      osc.start(now); osc.stop(now + 0.06);
+    } else if (type === 'lever') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(400, now);
+      osc.frequency.setValueAtTime(800, now + 0.03);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.06);
+      osc.start(now); osc.stop(now + 0.06);
+    }
+  } catch (e) {}
+}
+
+function createPixelTexture(type, state = {}) {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  if (type === 'grass_top') {
+    ctx.fillStyle = '#557a2b'; ctx.fillRect(0, 0, size, size);
+    for (let i = 0; i < 400; i++) {
+      ctx.fillStyle = Math.random() > 0.5 ? '#436122' : '#699635';
+      ctx.fillRect(Math.floor(Math.random()*16)*4, Math.floor(Math.random()*16)*4, 4, 4);
+    }
+  } else if (type === 'wood') {
+    ctx.fillStyle = '#8B5A2B'; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#6e441d';
+    for (let y = 0; y < size; y += 16) ctx.fillRect(0, y, size, 2);
+  } else if (type === 'stone') {
+    ctx.fillStyle = '#7a7a7a'; ctx.fillRect(0, 0, size, size);
+    for (let i = 0; i < 350; i++) {
+      ctx.fillStyle = Math.random() > 0.5 ? '#5e5e5e' : '#969696';
+      ctx.fillRect(Math.floor(Math.random()*16)*4, Math.floor(Math.random()*16)*4, 4, 4);
+    }
+  } else if (type === 'brick') {
+    ctx.fillStyle = '#A03020'; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#b5b5b5';
+    for (let r = 0; r < 8; r++) ctx.fillRect(0, r*8, size, 1);
+  } else if (type === 'wool') {
+    ctx.fillStyle = '#ECECEC'; ctx.fillRect(0, 0, size, size);
+  } else if (type === 'redstone_lamp') {
+    const on = state.power > 0;
+    ctx.fillStyle = on ? '#f39c12' : '#5c3a21'; ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = '#2c1e11'; ctx.lineWidth = 4; ctx.strokeRect(2, 2, size-4, size-4);
+  } else if (type === 'piston_top') {
+    ctx.fillStyle = state.sticky ? '#27ae60' : '#c0392b'; ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 6; ctx.strokeRect(4, 4, size-8, size-8);
+  } else if (type === 'piston_side') {
+    ctx.fillStyle = '#7f8c8d'; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#8B5A2B'; ctx.fillRect(0, 0, size, 16);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  return texture;
+}
+
+const S = {
+  player: { x: 0, y: 1.6, z: 5, pitch: -0.2, yaw: 0, speed: 6.0 },
+  moveVector: { x: 0, z: 0 },
+  isFlying: false,
+  flyVerticalDir: 0,
+  activeMaterial: 'redstone_dust',
+  placedBlocksCount: 0,
+  targeted: null
+};
+
+let gameInitialized = false;
+let scene, camera, renderer, groundMesh, highlightMesh;
+const placedBlocks = new Map();
+const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+let textures = {};
+
+function getBlockKey(x, y, z) {
+  return `${Math.round(x)},${Math.round(y)},${Math.round(z)}`;
+}
+
+function init3DGame() {
+  if (gameInitialized) {
+    window.dispatchEvent(new Event('resize'));
+    return;
+  }
+  gameInitialized = true;
+
+  const canvas = document.getElementById('gameCanvas');
+  const container = document.getElementById('canvas-container');
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color('#5c94fc');
+  scene.fog = new THREE.Fog('#5c94fc', 25, 75);
+
+  camera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 0.1, 200);
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(container.clientWidth, container.clientHeight);
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+  scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  dirLight.position.set(20, 40, 20);
+  scene.add(dirLight);
+
+  textures = {
+    wood: createPixelTexture('wood'),
+    stone: createPixelTexture('stone'),
+    brick: createPixelTexture('brick'),
+    wool: createPixelTexture('wool'),
+    grass: createPixelTexture('grass_top'),
+    lamp_off: createPixelTexture('redstone_lamp', { power: 0 }),
+    lamp_on: createPixelTexture('redstone_lamp', { power: 15 }),
+    piston_top: createPixelTexture('piston_top', { sticky: false }),
+    piston_sticky_top: createPixelTexture('piston_top', { sticky: true }),
+    piston_side: createPixelTexture('piston_side')
+  };
+
+  const groundSize = 64;
+  const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize);
+  groundGeo.rotateX(-Math.PI / 2);
+  textures.grass.wrapS = textures.grass.wrapT = THREE.RepeatWrapping;
+  textures.grass.repeat.set(groundSize, groundSize);
+  groundMesh = new THREE.Mesh(groundGeo, new THREE.MeshLambertMaterial({ map: textures.grass }));
+  groundMesh.userData = { isGround: true };
+  scene.add(groundMesh);
+
+  const highlightGeo = new THREE.BoxGeometry(1.02, 1.02, 1.02);
+  const highlightMat = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true, transparent: true, opacity: 0.6 });
+  highlightMesh = new THREE.Mesh(highlightGeo, highlightMat);
+  highlightMesh.visible = false;
+  scene.add(highlightMesh);
+
+  setupInputs();
+
+  let lastTime = performance.now();
+  function animate(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+    if (!document.getElementById('consoleScreen').classList.contains('hidden')) {
+        updateGameLogic(dt);
+        renderer.render(scene, camera);
+    }
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+}
+
+/* REDSTONE ENGINE */
+let redstoneTickTimer = 0;
+
+function getAdjacentDirections() {
+  return [
+    new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
+    new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0),
+    new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)
+  ];
+}
+
+function updateVerticalConnections() {
+  placedBlocks.forEach(b => {
+    if (b.type === 'redstone_dust') {
+      if (b.verticalMeshes) {
+        b.verticalMeshes.forEach(vm => scene.remove(vm));
+      }
+      b.verticalMeshes = [];
+
+      const horizDirs = [
+        { dir: new THREE.Vector3(1, 0, 0), rotY: 0 },
+        { dir: new THREE.Vector3(-1, 0, 0), rotY: Math.PI },
+        { dir: new THREE.Vector3(0, 0, 1), rotY: -Math.PI / 2 },
+        { dir: new THREE.Vector3(0, 0, -1), rotY: Math.PI / 2 }
+      ];
+
+      horizDirs.forEach(item => {
+        const upperNeighborPos = b.pos.clone().add(item.dir).add(new THREE.Vector3(0, 1, 0));
+        const upperKey = getBlockKey(upperNeighborPos.x, upperNeighborPos.y, upperNeighborPos.z);
+        const upperBlock = placedBlocks.get(upperKey);
+
+        if (upperBlock && upperBlock.type === 'redstone_dust') {
+          const vertGeo = new THREE.PlaneGeometry(0.8, 1.0);
+          const vertMat = new THREE.MeshBasicMaterial({ color: 0x4a0000, side: THREE.DoubleSide });
+          const vertMesh = new THREE.Mesh(vertGeo, vertMat);
+
+          const offset = item.dir.clone().multiplyScalar(0.49);
+          vertMesh.position.copy(b.pos).add(offset).add(new THREE.Vector3(0, 0.5, 0));
+          vertMesh.rotation.y = item.rotY;
+
+          scene.add(vertMesh);
+          b.verticalMeshes.push(vertMesh);
+        }
+      });
+    }
+  });
+}
+
+function updateRedstoneEngine() {
+  placedBlocks.forEach(b => b.power = 0);
+
+  placedBlocks.forEach(b => {
+    if (b.type === 'lever' && b.active) b.power = 15;
+  });
+
+  let queue = [];
+  placedBlocks.forEach(b => {
+    if (b.type === 'lever' && b.active) queue.push({ pos: b.pos, power: 15 });
+  });
+
+  const dirs = getAdjacentDirections();
+
+  while (queue.length > 0) {
+    const curr = queue.shift();
+    for (const d of dirs) {
+      const np = curr.pos.clone().add(d);
+      const key = getBlockKey(np.x, np.y, np.z);
+      const b = placedBlocks.get(key);
+      if (b) {
+        if (b.type === 'redstone_dust') {
+          const nextPower = curr.power - 1;
+          if (nextPower > b.power && nextPower > 0) {
+            b.power = nextPower;
+            queue.push({ pos: b.pos, power: nextPower });
+          }
+        } else if (b.type === 'repeater') {
+          if (curr.power > 0 && b.power === 0) {
+            b.power = 15;
+            queue.push({ pos: b.pos, power: 15 });
+          }
+        } else if (['redstone_lamp', 'piston', 'sticky_piston', 'stone', 'wood', 'brick', 'wool'].includes(b.type)) {
+          if (curr.power > b.power) b.power = curr.power;
+        }
+      }
+    }
+
+    const currBlock = placedBlocks.get(getBlockKey(curr.pos.x, curr.pos.y, curr.pos.z));
+    if (currBlock && currBlock.type === 'redstone_dust') {
+      const horizDirs = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)];
+      horizDirs.forEach(hDir => {
+        const upPos = curr.pos.clone().add(hDir).add(new THREE.Vector3(0, 1, 0));
+        const upBlock = placedBlocks.get(getBlockKey(upPos.x, upPos.y, upPos.z));
+        if (upBlock && upBlock.type === 'redstone_dust') {
+          const nextPower = curr.power - 1;
+          if (nextPower > upBlock.power && nextPower > 0) {
+            upBlock.power = nextPower;
+            queue.push({ pos: upBlock.pos, power: nextPower });
+          }
+        }
+        const downPos = curr.pos.clone().add(hDir).add(new THREE.Vector3(0, -1, 0));
+        const downBlock = placedBlocks.get(getBlockKey(downPos.x, downPos.y, downPos.z));
+        if (downBlock && downBlock.type === 'redstone_dust') {
+          const nextPower = curr.power - 1;
+          if (nextPower > downBlock.power && nextPower > 0) {
+            downBlock.power = nextPower;
+            queue.push({ pos: downBlock.pos, power: nextPower });
+          }
+        }
+      });
+    }
+  }
+
+  placedBlocks.forEach(b => {
+    if (b.type === 'redstone_torch') {
+      const supportPos = b.pos.clone().add(b.attachNormal.clone().negate());
+      const supportBlock = placedBlocks.get(getBlockKey(supportPos.x, supportPos.y, supportPos.z));
+      b.active = !(supportBlock && supportBlock.power > 0);
+      if (b.active) b.power = 15;
+    }
+  });
+
+  queue = [];
+  placedBlocks.forEach(b => {
+    if (b.type === 'redstone_torch' && b.active) queue.push({ pos: b.pos, power: 15 });
+  });
+
+  while (queue.length > 0) {
+    const curr = queue.shift();
+    for (const d of dirs) {
+      const np = curr.pos.clone().add(d);
+      const b = placedBlocks.get(getBlockKey(np.x, np.y, np.z));
+      if (b) {
+        if (b.type === 'redstone_dust') {
+          const nextPower = curr.power - 1;
+          if (nextPower > b.power && nextPower > 0) {
+            b.power = nextPower;
+            queue.push({ pos: b.pos, power: nextPower });
+          }
+        } else if (b.type === 'repeater') {
+          if (curr.power > 0 && b.power === 0) {
+            b.power = 15;
+            queue.push({ pos: b.pos, power: 15 });
+          }
+        } else if (['redstone_lamp', 'piston', 'sticky_piston'].includes(b.type)) {
+          if (curr.power > b.power) b.power = curr.power;
+        }
+      }
+    }
+  }
+
+  updateVerticalConnections();
+
+  placedBlocks.forEach(b => {
+    if (b.type === 'redstone_dust') {
+      const p = b.power;
+      const color = new THREE.Color().setHSL(0, p > 0 ? 0.9 : 0.2, p > 0 ? 0.2 + (p / 15) * 0.4 : 0.1);
+      b.mesh.material.color.copy(color);
+      if (b.verticalMeshes) b.verticalMeshes.forEach(vm => vm.material.color.copy(color));
+    } else if (b.type === 'redstone_torch') {
+      b.mesh.material.color.setHex(b.active ? 0xff2200 : 0x330000);
+    } else if (b.type === 'redstone_lamp') {
+      b.mesh.material.map = b.power > 0 ? textures.lamp_on : textures.lamp_off;
+      b.mesh.material.needsUpdate = true;
+    } else if (b.type === 'piston' || b.type === 'sticky_piston') {
+      const shouldExtend = b.power > 0;
+      if (shouldExtend && !b.extended) extendPiston(b);
+      else if (!shouldExtend && b.extended) retractPiston(b);
+    }
+  });
+}
+
+function extendPiston(piston) {
+  piston.extended = true;
+  playSound('piston');
+  const dir = piston.dir;
+  const frontPos = piston.pos.clone().add(dir);
+  const frontKey = getBlockKey(frontPos.x, frontPos.y, frontPos.z);
+  const frontBlock = placedBlocks.get(frontKey);
+
+  if (frontBlock) {
+    const pushTargetPos = frontPos.clone().add(dir);
+    const pushTargetKey = getBlockKey(pushTargetPos.x, pushTargetPos.y, pushTargetPos.z);
+    if (!placedBlocks.has(pushTargetKey) && pushTargetPos.y >= 0.5) {
+      frontBlock.pos.copy(pushTargetPos);
+      frontBlock.mesh.position.copy(pushTargetPos);
+      placedBlocks.delete(frontKey);
+      placedBlocks.set(pushTargetKey, frontBlock);
+    }
+  }
+
+  const headGeo = new THREE.BoxGeometry(0.9, 0.2, 0.9);
+  const headMat = new THREE.MeshLambertMaterial({ color: piston.type === 'sticky_piston' ? 0x27ae60 : 0xd35400 });
+  const headMesh = new THREE.Mesh(headGeo, headMat);
+  headMesh.position.copy(piston.pos).add(dir.clone().multiplyScalar(0.6));
+  scene.add(headMesh);
+  piston.headMesh = headMesh;
+}
+
+function retractPiston(piston) {
+  piston.extended = false;
+  playSound('piston');
+  if (piston.headMesh) {
+    scene.remove(piston.headMesh);
+    piston.headMesh = null;
+  }
+
+  if (piston.type === 'sticky_piston') {
+    const dir = piston.dir;
+    const frontPos = piston.pos.clone().add(dir.clone().multiplyScalar(2));
+    const frontKey = getBlockKey(frontPos.x, frontPos.y, frontPos.z);
+    const frontBlock = placedBlocks.get(frontKey);
+
+    const pullTargetPos = piston.pos.clone().add(dir);
+    const pullTargetKey = getBlockKey(pullTargetPos.x, pullTargetPos.y, pullTargetPos.z);
+
+    if (frontBlock && !placedBlocks.has(pullTargetKey)) {
+      frontBlock.pos.copy(pullTargetPos);
+      frontBlock.mesh.position.copy(pullTargetPos);
+      placedBlocks.delete(frontKey);
+      placedBlocks.set(pullTargetKey, frontBlock);
+    }
+  }
+}
+
+function createBlockMesh(type, pos, dir, attachNormal) {
+  let mesh;
+  if (type === 'redstone_dust') {
+    const geo = new THREE.BoxGeometry(0.8, 0.05, 0.8);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x4a0000 });
+    mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x, pos.y - 0.45, pos.z);
+  } else if (type === 'lever') {
+    const group = new THREE.Group();
+    const baseGeo = new THREE.BoxGeometry(0.4, 0.1, 0.5);
+    const baseMat = new THREE.MeshLambertMaterial({ map: textures.stone });
+    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+    baseMesh.position.set(0, -0.42, 0);
+    group.add(baseMesh);
+
+    const stickGeo = new THREE.BoxGeometry(0.08, 0.4, 0.08);
+    const stickMat = new THREE.MeshLambertMaterial({ map: textures.wood });
+    const stickMesh = new THREE.Mesh(stickGeo, stickMat);
+    stickMesh.position.set(0, -0.2, 0);
+    stickMesh.rotation.z = Math.PI / 4;
+    stickMesh.name = 'lever_handle';
+    group.add(stickMesh);
+
+    group.position.copy(pos);
+    mesh = group;
+  } else if (type === 'redstone_torch') {
+    const geo = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
+    mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x, pos.y - 0.2, pos.z);
+  } else if (type === 'piston' || type === 'sticky_piston') {
+    const materials = [
+      new THREE.MeshLambertMaterial({ map: textures.piston_side }),
+      new THREE.MeshLambertMaterial({ map: textures.piston_side }),
+      new THREE.MeshLambertMaterial({ map: type === 'sticky_piston' ? textures.piston_sticky_top : textures.piston_top }),
+      new THREE.MeshLambertMaterial({ map: textures.wood }),
+      new THREE.MeshLambertMaterial({ map: textures.piston_side }),
+      new THREE.MeshLambertMaterial({ map: textures.piston_side })
+    ];
+    mesh = new THREE.Mesh(boxGeo, materials);
+    mesh.position.copy(pos);
+  } else if (type === 'repeater' || type === 'comparator') {
+    const geo = new THREE.BoxGeometry(0.8, 0.15, 0.8);
+    const mat = new THREE.MeshLambertMaterial({ map: textures.stone });
+    mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x, pos.y - 0.4, pos.z);
+  } else if (type === 'redstone_lamp') {
+    mesh = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({ map: textures.lamp_off }));
+    mesh.position.copy(pos);
+  } else {
+    const matMap = { wood: textures.wood, stone: textures.stone, brick: textures.brick, wool: textures.wool };
+    mesh = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({ map: matMap[type] || textures.wood }));
+    mesh.position.copy(pos);
+  }
+  return mesh;
+}
+
+function toggleLever(blockData) {
+  blockData.active = !blockData.active;
+  playSound('lever');
+  const handle = blockData.mesh.getObjectByName('lever_handle');
+  if (handle) {
+    handle.rotation.z = blockData.active ? -Math.PI / 4 : Math.PI / 4;
+  }
+  updateRedstoneEngine();
+}
+
+function placeBlock() {
+  if (!S.targeted) return;
+
+  if (S.targeted.isPlacedBlock) {
+    const key = S.targeted.blockMesh.userData.key;
+    const b = placedBlocks.get(key);
+    if (b && b.type === 'lever') {
+      toggleLever(b);
+      return;
+    }
+  }
+
+  const norm = S.targeted.normal;
+  let placePos;
+
+  if (S.targeted.isPlacedBlock) {
+    placePos = S.targeted.blockMesh.position.clone().add(norm);
+  } else {
+    placePos = new THREE.Vector3(
+      Math.floor(S.targeted.point.x + 0.5),
+      0.5,
+      Math.floor(S.targeted.point.z + 0.5)
+    );
+  }
+
+  if (!S.isFlying && placePos.distanceTo(new THREE.Vector3(S.player.x, S.player.y, S.player.z)) < 0.7) return;
+
+  const key = getBlockKey(placePos.x, placePos.y, placePos.z);
+  if (placedBlocks.has(key)) return;
+
+  const playerDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), S.player.yaw);
+  let pistonDir = new THREE.Vector3(0, 0, -1);
+  if (Math.abs(playerDir.x) > Math.abs(playerDir.z)) {
+    pistonDir.set(playerDir.x > 0 ? 1 : -1, 0, 0);
+  } else {
+    pistonDir.set(0, 0, playerDir.z > 0 ? 1 : -1);
+  }
+
+  const mat = S.activeMaterial;
+  const attachNormal = norm.clone();
+  const mesh = createBlockMesh(mat, placePos, pistonDir, attachNormal);
+  scene.add(mesh);
+
+  const blockData = {
+    type: mat, mesh, pos: placePos, power: 0,
+    active: mat === 'redstone_torch', extended: false, dir: pistonDir,
+    attachNormal, headMesh: null, verticalMeshes: []
+  };
+
+  placedBlocks.set(key, blockData);
+  S.placedBlocksCount = placedBlocks.size;
+  document.getElementById('placed-count').textContent = S.placedBlocksCount;
+
+  playSound('place');
+  updateRedstoneEngine();
+}
+
+function breakBlock() {
+  if (!S.targeted || !S.targeted.isPlacedBlock) return;
+  const mesh = S.targeted.blockMesh;
+  const key = mesh.userData.key;
+  const b = placedBlocks.get(key);
+
+  if (b) {
+    if (b.headMesh) scene.remove(b.headMesh);
+    if (b.verticalMeshes) b.verticalMeshes.forEach(vm => scene.remove(vm));
+    scene.remove(b.mesh);
+    placedBlocks.delete(key);
+    S.placedBlocksCount = placedBlocks.size;
+    document.getElementById('placed-count').textContent = S.placedBlocksCount;
+
+    playSound('break');
+    updateRedstoneEngine();
+  }
+}
+
+window.clearMap = function() {
+  placedBlocks.forEach(b => {
+    if (b.headMesh) scene.remove(b.headMesh);
+    if (b.verticalMeshes) b.verticalMeshes.forEach(vm => scene.remove(vm));
+    scene.remove(b.mesh);
+  });
+  placedBlocks.clear();
+  S.placedBlocksCount = 0;
+  document.getElementById('placed-count').textContent = 0;
+  playSound('break');
+
+  const toast = document.getElementById('toast');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+const raycaster = new THREE.Raycaster();
+raycaster.far = 10;
+
+function updateTargeting() {
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+  const interactables = [groundMesh];
+  placedBlocks.forEach(b => { if (b.mesh) interactables.push(b.mesh); });
+
+  const intersects = raycaster.intersectObjects(interactables, true);
+  const targetInfoEl = document.getElementById('target-info');
+
+  if (intersects.length > 0) {
+    const hit = intersects[0];
+    let topObj = hit.object;
+    while (topObj.parent && topObj.parent !== scene) topObj = topObj.parent;
+
+    const isGround = topObj.userData.isGround === true;
+
+    S.targeted = {
+      hit, point: hit.point,
+      normal: hit.face.normal ? hit.face.normal.clone() : new THREE.Vector3(0, 1, 0),
+      isPlacedBlock: !isGround,
+      blockMesh: isGround ? null : topObj
+    };
+
+    if (isGround) {
+      const gridPos = new THREE.Vector3(Math.floor(hit.point.x + 0.5), 0.5, Math.floor(hit.point.z + 0.5));
+      highlightMesh.position.copy(gridPos);
+      targetInfoEl.textContent = 'Apuntando: Suelo';
+    } else {
+      highlightMesh.position.copy(topObj.position);
+      const key = topObj.userData.key;
+      const b = placedBlocks.get(key);
+      targetInfoEl.textContent = `Apuntando: ${b ? b.type.toUpperCase() : 'Bloque'}`;
+    }
+    highlightMesh.visible = true;
+    targetInfoEl.classList.add('visible');
+  } else {
+    S.targeted = null;
+    highlightMesh.visible = false;
+    targetInfoEl.classList.remove('visible');
+  }
+}
+
+const origSet = placedBlocks.set.bind(placedBlocks);
+placedBlocks.set = function(key, value) {
+  if (value && value.mesh) value.mesh.userData.key = key;
+  return origSet(key, value);
+};
+
+/* CONTROLES Y ENTRADAS */
+function setupInputs() {
+  let lookPointerId = null, lastLookX = 0, lastLookY = 0;
+  const joystickZone = document.getElementById('joystick-zone');
+  const joystickKnob = document.getElementById('joystick-knob');
+  let joystickPointerId = null, joystickCenter = { x: 0, y: 0 };
+
+  joystickZone.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    joystickPointerId = e.pointerId;
+    joystickZone.setPointerCapture(e.pointerId);
+    const rect = joystickZone.getBoundingClientRect();
+    joystickCenter = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+  });
+
+  joystickZone.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== joystickPointerId) return;
+    let dx = e.clientX - joystickCenter.x;
+    let dy = e.clientY - joystickCenter.y;
+    const dist = Math.hypot(dx, dy), radius = 35;
+    if (dist > radius) { dx = (dx/dist)*radius; dy = (dy/dist)*radius; }
+    joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    S.moveVector.x = dx / radius; S.moveVector.z = dy / radius;
+  });
+
+  const resetJoystick = () => {
+    joystickPointerId = null;
+    joystickKnob.style.transform = 'translate(-50%, -50%)';
+    S.moveVector.x = 0; S.moveVector.z = 0;
+  };
+  joystickZone.addEventListener('pointerup', resetJoystick);
+  joystickZone.addEventListener('pointercancel', resetJoystick);
+
+  window.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.interactive-el')) return;
+    if (lookPointerId === null) {
+      lookPointerId = e.pointerId;
+      lastLookX = e.clientX; lastLookY = e.clientY;
+    }
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== lookPointerId) return;
+    const dx = e.clientX - lastLookX, dy = e.clientY - lastLookY;
+    lastLookX = e.clientX; lastLookY = e.clientY;
+    S.player.yaw -= dx * 0.005;
+    S.player.pitch -= dy * 0.005;
+    S.player.pitch = Math.max(-Math.PI/2.1, Math.min(Math.PI/2.1, S.player.pitch));
+  });
+
+  const endLook = (e) => { if (e.pointerId === lookPointerId) lookPointerId = null; };
+  window.addEventListener('pointerup', endLook);
+  window.addEventListener('pointercancel', endLook);
+
+
+  // =========================================================
+  // SOPORTE NATIVO PARA MANDO / GAMEPAD
+  // No reemplaza teclado ni táctil: funciona en paralelo.
+  // =========================================================
+  const gamepadState = {
+    index: null,
+    lastButtons: [],
+    lastAxes: [0,0,0,0],
+    raf: null,
+    deadzone: 0.16,
+    moveX: 0,
+    moveZ: 0,
+    lookX: 0,
+    lookY: 0,
+    flyUp: false,
+    flyDown: false
+  };
+
+  function setControllerUI(connected, name='NO CONECTADO'){
+    const dot = document.getElementById('controllerDot');
+    const label = document.getElementById('controllerName');
+    if(!dot || !label) return;
+    dot.classList.toggle('on', connected);
+    label.textContent = connected ? (name || 'MANDO CONECTADO').slice(0,28) : 'NO CONECTADO';
+  }
+
+  function applyDeadzone(v){
+    return Math.abs(v) < gamepadState.deadzone ? 0 :
+      (v - Math.sign(v)*gamepadState.deadzone)/(1-gamepadState.deadzone);
+  }
+
+  function pressEdge(gp, i){
+    return !!(gp.buttons[i] && gp.buttons[i].pressed) && !gamepadState.lastButtons[i];
+  }
+
+  function holdButton(gp, i){
+    return !!(gp.buttons[i] && gp.buttons[i].pressed);
+  }
+
+  function gamepadActionPress(){
+    if(typeof placeBlock === 'function') placeBlock();
+  }
+
+  function gamepadActionBreak(){
+    if(typeof breakBlock === 'function') breakBlock();
+  }
+
+  function toggleFlyFromGamepad(){
+    const b = document.getElementById('btn-fly');
+    if(b) b.click();
+  }
+
+  function selectHotbarByDelta(delta){
+    const slots = [...document.querySelectorAll('.slot-btn')];
+    if(!slots.length) return;
+    let current = slots.findIndex(s => s.classList.contains('active'));
+    if(current < 0) current = 0;
+    current = (current + delta + slots.length) % slots.length;
+    slots[current].click();
+  }
+
+  function readGamepad(){
+    if(gamepadState.index === null){
+      const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+      for(let i=0;i<gps.length;i++){
+        if(gps[i]){
+          gamepadState.index=i;
+          setControllerUI(true, gps[i].id);
+          break;
+        }
+      }
+    }
+
+    if(gamepadState.index === null){
+      gamepadState.raf = requestAnimationFrame(readGamepad);
+      return;
+    }
+
+    const gp = navigator.getGamepads()[gamepadState.index];
+    if(!gp){
+      gamepadState.index=null;
+      setControllerUI(false);
+      gamepadState.raf=requestAnimationFrame(readGamepad);
+      return;
+    }
+
+    // Ejes: LS mover, RS cámara.
+    const lx=applyDeadzone(gp.axes[0]||0);
+    const ly=applyDeadzone(gp.axes[1]||0);
+    const rx=applyDeadzone(gp.axes[2]||0);
+    const ry=applyDeadzone(gp.axes[3]||0);
+
+    S.moveVector.x=lx;
+    S.moveVector.z=ly;
+    S.player.yaw -= rx*0.055;
+    S.player.pitch -= ry*0.045;
+    S.player.pitch=Math.max(-Math.PI/2.1,Math.min(Math.PI/2.1,S.player.pitch));
+
+    // A (0): colocar. B (1): volar.
+    if(pressEdge(gp,0)) gamepadActionPress();
+    if(pressEdge(gp,1)) toggleFlyFromGamepad();
+
+    // X (2): romper. Mantener X rompe.
+    if(holdButton(gp,2)) gamepadActionBreak();
+
+    // Y (3): pantalla completa.
+    if(pressEdge(gp,3) && typeof goFullscreen==='function') goFullscreen();
+
+    // LB/RB: seleccionar material.
+    if(pressEdge(gp,4)) selectHotbarByDelta(-1);
+    if(pressEdge(gp,5)) selectHotbarByDelta(1);
+
+    // D-pad arriba/abajo: vuelo vertical; izquierda/derecha: materiales.
+    if(pressEdge(gp,12) && S.isFlying) S.flyVerticalDir=1;
+    if(pressEdge(gp,13) && S.isFlying) S.flyVerticalDir=-1;
+    if(!holdButton(gp,12) && !holdButton(gp,13)) S.flyVerticalDir=0;
+    if(pressEdge(gp,14)) selectHotbarByDelta(-1);
+    if(pressEdge(gp,15)) selectHotbarByDelta(1);
+
+    // Start: menú de juegos. Back: conectar pantalla.
+    if(pressEdge(gp,9) && typeof returnToGameSelect==='function') returnToGameSelect();
+    if(pressEdge(gp,8) && typeof openConnection==='function') openConnection();
+
+    gamepadState.lastButtons=gp.buttons.map(b=>!!b.pressed);
+    gamepadState.lastAxes=[lx,ly,rx,ry];
+    gamepadState.raf=requestAnimationFrame(readGamepad);
+  }
+
+  window.addEventListener('gamepadconnected', e=>{
+    gamepadState.index=e.gamepad.index;
+    setControllerUI(true,e.gamepad.id);
+  });
+
+  window.addEventListener('gamepaddisconnected', e=>{
+    if(gamepadState.index===e.gamepad.index){
+      gamepadState.index=null;
+      S.moveVector.x=0; S.moveVector.z=0; S.flyVerticalDir=0;
+      setControllerUI(false);
+    }
+  });
+
+  document.getElementById('controllerScanBtn')?.addEventListener('click',()=>{
+    const gps=navigator.getGamepads?navigator.getGamepads():[];
+    const gp=[...gps].find(Boolean);
+    if(gp){
+      gamepadState.index=gp.index;
+      setControllerUI(true,gp.id);
+    }else{
+      setControllerUI(false);
+      if(typeof showError==='function') showError('No se detectó ningún mando. Conéctalo por USB o Bluetooth y pulsa MANDO.');
+    }
+  });
+
+  readGamepad();
+
+  // Teclado
+  window.addEventListener('keydown', (e) => {
+    if(e.key === "ArrowUp" || e.key.toLowerCase() === "w") S.moveVector.z = -1;
+    if(e.key === "ArrowDown" || e.key.toLowerCase() === "s") S.moveVector.z = 1;
+    if(e.key === "ArrowLeft" || e.key.toLowerCase() === "a") S.moveVector.x = -1;
+    if(e.key === "ArrowRight" || e.key.toLowerCase() === "d") S.moveVector.x = 1;
+    if(e.key === " ") placeBlock();
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if(["ArrowUp","ArrowDown","w","s"].includes(e.key.toLowerCase())) S.moveVector.z = 0;
+    if(["ArrowLeft","ArrowRight","a","d"].includes(e.key.toLowerCase())) S.moveVector.x = 0;
+  });
+
+  const actionBtn = document.getElementById('action-btn');
+  const actionProgress = document.getElementById('action-progress');
+  let actionTimer = null, actionStartTime = 0;
+
+  actionBtn.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    actionStartTime = performance.now();
+    actionProgress.style.width = '0%';
+    actionBtn.classList.add('holding');
+
+    const interval = setInterval(() => {
+      const elapsed = performance.now() - actionStartTime;
+      actionProgress.style.width = `${Math.min(100, (elapsed/350)*100)}%`;
+      if (elapsed >= 350) clearInterval(interval);
+    }, 30);
+
+    actionTimer = setTimeout(() => {
+      breakBlock();
+      actionProgress.style.width = '0%';
+    }, 350);
+  });
+
+  actionBtn.addEventListener('pointerup', () => {
+    actionBtn.classList.remove('holding');
+    actionProgress.style.width = '0%';
+    const duration = performance.now() - actionStartTime;
+    clearTimeout(actionTimer);
+    if (duration < 350) placeBlock();
+  });
+
+  const btnFly = document.getElementById('btn-fly');
+  const flyControls = document.getElementById('fly-controls');
+  const btnUp = document.getElementById('btn-up');
+  const btnDown = document.getElementById('btn-down');
+
+  btnFly.addEventListener('click', () => {
+    S.isFlying = !S.isFlying;
+    btnFly.classList.toggle('active', S.isFlying);
+    btnFly.querySelector('span').textContent = S.isFlying ? '✈ VOLAR: ON' : '✈ VOLAR: OFF';
+    flyControls.classList.toggle('visible', S.isFlying);
+    if (!S.isFlying && S.player.y < 1.6) S.player.y = 1.6;
+  });
+
+  btnUp.addEventListener('pointerdown', (e) => { e.stopPropagation(); S.flyVerticalDir = 1; });
+  btnUp.addEventListener('pointerup', () => { S.flyVerticalDir = 0; });
+  btnUp.addEventListener('pointercancel', () => { S.flyVerticalDir = 0; });
+
+  btnDown.addEventListener('pointerdown', (e) => { e.stopPropagation(); S.flyVerticalDir = -1; });
+  btnDown.addEventListener('pointerup', () => { S.flyVerticalDir = 0; });
+  btnDown.addEventListener('pointercancel', () => { S.flyVerticalDir = 0; });
+
+  const hotbarSlots = document.querySelectorAll('.slot-btn');
+  hotbarSlots.forEach(slot => {
+    slot.addEventListener('click', () => {
+      hotbarSlots.forEach(s => s.classList.remove('active'));
+      slot.classList.add('active');
+      S.activeMaterial = slot.dataset.material;
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    if (!camera || !renderer) return;
+    const container = document.getElementById('canvas-container');
+    if (!container) return;
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+  });
+}
+
+function updateGameLogic(dt) {
+  if (S.moveVector.x !== 0 || S.moveVector.z !== 0) {
+    const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), S.player.yaw);
+    const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), S.player.yaw);
+    const move = new THREE.Vector3().addScaledVector(forward, -S.moveVector.z).addScaledVector(right, S.moveVector.x).normalize();
+
+    const currentSpeed = S.isFlying ? S.player.speed * 1.5 : S.player.speed;
+    S.player.x += move.x * currentSpeed * dt;
+    S.player.z += move.z * currentSpeed * dt;
+  }
+
+  if (S.isFlying && S.flyVerticalDir !== 0) {
+    S.player.y += S.flyVerticalDir * S.player.speed * dt;
+    if (S.player.y < 0.8) S.player.y = 0.8;
+  }
+
+  camera.position.set(S.player.x, S.player.y, S.player.z);
+  camera.quaternion.setFromEuler(new THREE.Euler(S.player.pitch, S.player.yaw, 0, 'YXZ'));
+
+  updateTargeting();
+
+  redstoneTickTimer += dt;
+  if (redstoneTickTimer >= 0.1) {
+    updateRedstoneEngine();
+    redstoneTickTimer = 0;
+  }
+}
+
+  // ===== ANIMACIONES DE INTERFAZ =====
+  function setupOrbitAnimations(){
+    document.querySelectorAll('.gameCard').forEach((card,i)=>{
+      card.style.setProperty('--card-index',i);
+    });
+
+    document.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('pointerdown',()=>btn.classList.add('motion-pressed'));
+      btn.addEventListener('pointerup',()=>btn.classList.remove('motion-pressed'));
+      btn.addEventListener('pointercancel',()=>btn.classList.remove('motion-pressed'));
+    });
+  }
+
+  function orbitScreenTransition(){
+    document.body.classList.add('orbit-transition');
+    setTimeout(()=>document.body.classList.remove('orbit-transition'),420);
+  }
+
+  const oldSetControllerUI = window.setControllerUI;
+  if(typeof oldSetControllerUI === 'function'){
+    window.setControllerUI = function(connected,name){
+      oldSetControllerUI(connected,name);
+      const panel=document.getElementById('controllerPanel');
+      if(panel) panel.classList.toggle('connected',!!connected);
+      if(connected) orbitScreenTransition();
+    };
+  }
+
+  window.addEventListener('load',()=>{
+    setupOrbitAnimations();
+    setTimeout(setupOrbitAnimations,300);
+  });
+
+
+/* =========================================================
+   FIX CÁMARA MÓVIL
+   - El joystick y la cámara usan gestos independientes.
+   - La cámara usa un pointerId propio.
+   - No depende de que el joystick se esté moviendo.
+   - Usa movement del dedo, evitando que la cámara "se trabe".
+   ========================================================= */
+(function(){
+  let cameraPointerId = null;
+  let lastX = 0;
+  let lastY = 0;
+  let cameraActive = false;
+  let lastCameraTime = 0;
+
+  const gameRoot =
+    document.getElementById('gameArea') ||
+    document.querySelector('.gameArea') ||
+    document.getElementById('canvas-container') ||
+    document.body;
+
+  function isTouchLike(e){
+    return e.pointerType === 'touch' || e.pointerType === 'pen';
+  }
+
+  function getCameraSensitivity(){
+    // Sensibilidad suave y estable para móvil.
+    return window.innerWidth <= 700 ? 0.0065 : 0.0045;
+  }
+
+  function cameraStart(e){
+    if(!isTouchLike(e)) return;
+
+    const target = e.target;
+    // El joystick, botón de acción y hotbar conservan su función.
+    if(
+      target.closest('#joystick-zone') ||
+      target.closest('#action-btn') ||
+      target.closest('#hotbar') ||
+      target.closest('.consoleBottom') ||
+      target.closest('button') ||
+      target.closest('input')
+    ) return;
+
+    if(cameraPointerId !== null) return;
+
+    cameraPointerId = e.pointerId;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    lastCameraTime = performance.now();
+    cameraActive = true;
+
+    try{ gameRoot.setPointerCapture?.(e.pointerId); }catch(_){}
+
+    e.preventDefault();
+  }
+
+  function cameraMove(e){
+    if(!cameraActive || e.pointerId !== cameraPointerId) return;
+
+    const now = performance.now();
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+
+    lastX = e.clientX;
+    lastY = e.clientY;
+    lastCameraTime = now;
+
+    // Ignora micro-ruido, pero nunca exige movimiento del joystick.
+    if(Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
+
+    // Compatible con las variables S.player usadas por Voxel Mine.
+    if(window.S && S.player){
+      S.player.yaw -= dx * getCameraSensitivity();
+      S.player.pitch -= dy * getCameraSensitivity();
+
+      // Limitar verticalmente para evitar invertir la cámara.
+      S.player.pitch = Math.max(
+        -Math.PI / 2.05,
+        Math.min(Math.PI / 2.05, S.player.pitch)
+      );
+    }
+
+    e.preventDefault();
+  }
+
+  function cameraEnd(e){
+    if(e.pointerId !== cameraPointerId) return;
+
+    try{ gameRoot.releasePointerCapture?.(e.pointerId); }catch(_){}
+
+    cameraPointerId = null;
+    cameraActive = false;
+  }
+
+  gameRoot.addEventListener('pointerdown', cameraStart, {passive:false});
+  gameRoot.addEventListener('pointermove', cameraMove, {passive:false});
+  gameRoot.addEventListener('pointerup', cameraEnd, {passive:false});
+  gameRoot.addEventListener('pointercancel', cameraEnd, {passive:false});
+  gameRoot.addEventListener('pointerleave', e=>{
+    // En móviles no cancelamos por salir del elemento: pointer capture
+    // mantiene el gesto de cámara.
+    if(!isTouchLike(e)) cameraEnd(e);
+  }, {passive:false});
+
+  // Compatibilidad con navegadores móviles antiguos.
+  document.addEventListener('touchmove', function(e){
+    if(cameraPointerId !== null) e.preventDefault();
+  }, {passive:false});
+
+  // Si cambia de orientación, no dejamos un estado de cámara bloqueado.
+  window.addEventListener('orientationchange', ()=>{
+    cameraPointerId = null;
+    cameraActive = false;
+  });
+
+  console.log('[ORBIT] Fix de cámara móvil activo');
+})();
+
+</script>
+
+</body>
+</html>
